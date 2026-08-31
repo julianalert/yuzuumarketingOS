@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Marketing OS — Yuzuu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..500&family=Schibsted+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F4F5F0; --raised:#FFFFFF;
+  --ink:#16201B; --ink-soft:#3D4B43; --sage:#6E7C73;
+  --line:#D9DED4; --line-strong:#B9C2B6;
+  --zest:#B9CC3A; --zest-wash:#EFF3D9;
+  --warn:#C25B3A; --warn-wash:#F7E9E3;
+  --display:"Newsreader",Georgia,serif;
+  --ui:"Schibsted Grotesk",system-ui,-apple-system,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,monospace;
+  --r-sm:3px; --r-md:8px; --r-lg:12px;
+  --gutter:32px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{background:var(--paper);color:var(--ink);font-family:var(--ui);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh}
+
+.micro{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.13em;text-transform:uppercase;color:var(--sage)}
+
+h1{font-family:var(--display);font-weight:400;font-size:clamp(28px,3.6vw,38px);line-height:1.14;letter-spacing:-.018em;text-wrap:balance}
+h2{font-family:var(--display);font-weight:400;font-size:23px;line-height:1.25;letter-spacing:-.012em;margin-bottom:14px}
+h3{font-family:var(--display);font-weight:400;font-size:19px;letter-spacing:-.01em;color:var(--ink);margin-bottom:6px}
+p{color:var(--ink-soft);max-width:72ch}
+.lede{margin-top:14px;font-size:16px;color:var(--sage);max-width:60ch}
+
+.mark{font-family:var(--display);font-size:19px;letter-spacing:-.02em;display:inline-flex;align-items:baseline;gap:2px;color:var(--ink);text-decoration:none}
+.mark i{width:5px;height:5px;background:var(--zest);border-radius:1px;transform:translateY(-1px);margin-left:1px}
+
+.bar{border-bottom:1px solid var(--line);background:var(--paper);position:sticky;top:0;z-index:20}
+.bar-in{max-width:1140px;margin:0 auto;padding:14px var(--gutter);display:flex;align-items:center;gap:20px}
+.crumbs{margin-left:auto;display:flex;align-items:center;gap:8px}
+
+.header{max-width:1140px;margin:0 auto;padding:72px var(--gutter) 8px}
+.header .micro{margin-bottom:16px}
+
+.wrap{max-width:1140px;margin:0 auto;padding:48px var(--gutter) 120px}
+
+.section-label{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--line-strong);margin-bottom:16px}
+
+.grid-cards{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
+
+.card{
+  display:block;background:var(--raised);border:1px solid var(--line);border-radius:var(--r-lg);
+  padding:26px 26px 22px;text-decoration:none;color:inherit;
+  transition:border-color .15s,box-shadow .15s,transform .15s;
+}
+.card:hover{border-color:var(--zest);box-shadow:0 10px 28px rgba(22,32,27,.06);transform:translateY(-1px)}
+.card:focus-visible{outline:2px solid var(--zest);outline-offset:3px}
+.card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.pill{
+  display:inline-flex;align-items:center;font-family:var(--mono);font-size:10.5px;font-weight:500;
+  letter-spacing:.1em;text-transform:uppercase;background:var(--zest-wash);color:var(--ink-soft);
+  border-radius:999px;padding:3px 9px;
+}
+.pill.quiet{background:transparent;border:1px solid var(--line-strong);color:var(--sage)}
+.card-num{font-family:var(--mono);font-size:11px;color:var(--line-strong)}
+.card p{font-size:14.5px;color:var(--ink-soft);margin-bottom:20px}
+.card-foot{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding-top:14px;border-top:1px solid var(--line);
+}
+.card-path{font-family:var(--mono);font-size:11px;color:var(--sage)}
+.card-cta{font-size:13px;font-weight:500;color:var(--ink);display:flex;align-items:center;gap:4px}
+.card:hover .card-cta{color:var(--ink)}
+.card:hover .card-cta .arrow{transform:translateX(3px)}
+.arrow{display:inline-block;transition:transform .15s}
+
+.card.empty{
+  background:transparent;border:1px dashed var(--line-strong);display:flex;align-items:center;justify-content:center;
+  color:var(--sage);font-family:var(--mono);font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;
+  min-height:172px;text-align:center;
+}
+.card.empty:hover{border-color:var(--line-strong);box-shadow:none;transform:none}
+
+footer{border-top:1px solid var(--line)}
+footer .bar-in{padding:22px var(--gutter);color:var(--sage);font-size:13px}
+
+@media (max-width:760px){
+  .grid-cards{grid-template-columns:1fr}
+  .header{padding-top:48px}
+}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <div class="bar-in">
+    <a class="mark" href="/">Yuzuu<i></i></a>
+  </div>
+</div>
+
+<div class="header">
+  <div class="micro">Marketing OS</div>
+  <h1>The source of truth for how Yuzuu goes to market.</h1>
+  <p class="lede">Every brand decision, audience profile, and growth plan lives here, in one place, so the marketing gets driven from something more durable than a doc buried in a chat thread.</p>
+</div>
+
+<div class="wrap">
+  <div class="section-label">Parts</div>
+  <div class="grid-cards">
+
+    <a class="card" href="/brand-audience-profile.html">
+      <div class="card-top">
+        <span class="pill">Brand</span>
+        <span class="card-num">01</span>
+      </div>
+      <h3>Brand &amp; Audience Profile</h3>
+      <p>Positioning, offer, voice and codes — then the three creator segments, ranked by how fast they buy, with the objection to expect from each.</p>
+      <div class="card-foot">
+        <span class="card-path">brand-audience-profile.html</span>
+        <span class="card-cta">Open <span class="arrow">→</span></span>
+      </div>
+    </a>
+
+    <a class="card" href="/acquisition-roadmap.html">
+      <div class="card-top">
+        <span class="pill quiet">Growth</span>
+        <span class="card-num">02</span>
+      </div>
+      <h3>Acquisition Roadmap</h3>
+      <p>Ninety days, four channels, one wedge — the plan from zero creators to ten signups a day, with a kill criteria for when to stop and fix instead of push.</p>
+      <div class="card-foot">
+        <span class="card-path">acquisition-roadmap.html</span>
+        <span class="card-cta">Open <span class="arrow">→</span></span>
+      </div>
+    </a>
+
+    <div class="card empty">More parts land here as we build</div>
+
+  </div>
+</div>
+
+<footer>
+  <div class="bar-in">Yuzuu · Marketing OS</div>
+</footer>
+
+</body>
+</html>
