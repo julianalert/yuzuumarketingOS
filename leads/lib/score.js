@@ -88,14 +88,17 @@ const chunk = (arr, size) =>
 /** Keep bodies bounded — a 10k-word rant does not score better than its first 1200 words. */
 function renderPost(post) {
   const body = post.body.replace(/\s+\n/g, '\n').trim().slice(0, 1200)
+  const traction =
+    post.upvotes == null ? null : `upvotes: ${post.upvotes} · comments: ${post.comments}`
+
   return [
     `<post id="${post.id}">`,
     `subreddit: r/${post.subreddit}`,
     `title: ${post.title}`,
-    `upvotes: ${post.upvotes} · comments: ${post.comments}`,
+    traction,
     `body: ${body || '(no body — title only)'}`,
     '</post>',
-  ].join('\n')
+  ].filter(Boolean).join('\n')
 }
 
 async function scoreBatch(posts) {

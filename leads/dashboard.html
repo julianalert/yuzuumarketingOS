@@ -323,7 +323,7 @@ function card(l) {
       </div>` : ''}
       <div class="lead-foot">
         <a href="${esc(l.url)}" target="_blank" rel="noopener">Open on Reddit →</a>
-        <span>u/${esc(l.author)} · ${l.upvotes}▲ · ${l.comments} comments</span>
+        <span>u/${esc(l.author)}${l.upvotes == null ? '' : ` · ${l.upvotes}▲ · ${l.comments} comments`}</span>
       </div>
     </div>
   </article>`

@@ -20,8 +20,8 @@ const CSV_COLUMNS = [
   ['outreach_angle', (l) => l.outreachAngle],
   ['reason', (l) => l.reason],
   ['author', (l) => `u/${l.author}`],
-  ['upvotes', (l) => l.upvotes],
-  ['comments', (l) => l.comments],
+  ['upvotes', (l) => l.upvotes ?? ''],
+  ['comments', (l) => l.comments ?? ''],
   ['posted_at', (l) => new Date(l.createdUtc).toISOString()],
   ['url', (l) => l.url],
 ]

@@ -7,18 +7,10 @@
 
 /** Subreddits to watch. `weight` nudges the deterministic pre-score. */
 export const subreddits = [
-  { name: 'InstagramMarketing', weight: 1 },
+  { name: 'DigitalProductSellers', weight: 1.2 },
   { name: 'ContentCreators', weight: 1.1 },
-  { name: 'NewTubers', weight: 1 },
-  { name: 'PartneredYoutube', weight: 1.2 },
-  { name: 'youtubers', weight: 0.9 },
-  { name: 'Substack', weight: 1.1 },
-  { name: 'Blogging', weight: 0.9 },
-  { name: 'podcasting', weight: 0.9 },
-  { name: 'smallstreamers', weight: 0.8 },
-  { name: 'JustStart', weight: 0.9 },
-  { name: 'socialmedia', weight: 0.7 },
-  { name: 'InstagramGrowthTips', weight: 0.9 },
+  { name: 'InstagramMarketing', weight: 1 },
+  { name: 'influencermarketing', weight: 0.8 },
 ]
 
 export const config = {
@@ -37,6 +29,15 @@ export const config = {
   /** Days of history the dashboard and digest look back over. */
   retentionDays: 45,
 
+  /**
+   * Where posts come from.
+   *   'rss'   public Atom feeds — no credentials, no approval, ~25 posts/sub
+   *   'oauth' the official API — needs a Reddit app approved under the
+   *           Responsible Builder Policy, and returns richer data
+   *   'auto'  oauth when credentials are present, rss otherwise
+   */
+  source: process.env.LEADS_REDDIT_SOURCE || 'auto',
+
   model: process.env.LEADS_MODEL || 'claude-sonnet-5',
 
   digest: {
@@ -46,7 +47,7 @@ export const config = {
     skipWhenEmpty: true,
   },
 
-  dashboardUrl: process.env.LEADS_DASHBOARD_URL || 'https://marketing.yuzuu.co/leads',
+  dashboardUrl: process.env.LEADS_DASHBOARD_URL || 'https://yuzuumarketingos.vercel.app/leads',
 }
 
 /**

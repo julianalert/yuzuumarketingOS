@@ -42,7 +42,7 @@ function leadRow(lead, index) {
             ${lead.outreachAngle ? `<div style="margin-top:12px;padding:12px 14px;background:${PAPER};border-left:3px solid ${ZEST};border-radius:0 6px 6px 0;font:400 13.5px/1.55 -apple-system,Segoe UI,sans-serif;color:${INK}"><strong>Open with</strong> &mdash; ${esc(lead.outreachAngle)}</div>` : ''}
             <div style="padding-top:14px">
               <a href="${esc(lead.url)}" style="font:500 13px/1 -apple-system,Segoe UI,sans-serif;color:${INK};text-decoration:none;border-bottom:2px solid ${ZEST};padding-bottom:2px">Open on Reddit &rarr;</a>
-              <span style="font:400 12px/1 ui-monospace,Menlo,monospace;color:${SAGE};padding-left:14px">u/${esc(lead.author)} &middot; ${lead.upvotes}&#9650; &middot; ${lead.comments} comments</span>
+              <span style="font:400 12px/1 ui-monospace,Menlo,monospace;color:${SAGE};padding-left:14px">u/${esc(lead.author)}${lead.upvotes == null ? '' : ` &middot; ${lead.upvotes}&#9650; &middot; ${lead.comments} comments`}</span>
             </div>
           </td>
         </tr></table>

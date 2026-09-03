@@ -3,13 +3,27 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/leads", "destination": "/leads/index.html" }
+    {
+      "source": "/leads",
+      "destination": "/leads/index.html"
+    }
   ],
   "crons": [
-    { "path": "/api/cron/scan", "schedule": "0 6 * * *" }
+    {
+      "path": "/api/cron/scan",
+      "schedule": "0 6 * * *"
+    }
   ],
   "functions": {
-    "api/cron/scan.js": { "maxDuration": 300, "memory": 1024 },
-    "api/leads.js": { "maxDuration": 30 }
+    "api/cron/scan.js": {
+      "maxDuration": 300,
+      "memory": 1024
+    },
+    "api/leads.js": {
+      "maxDuration": 30
+    },
+    "api/probe.js": {
+      "maxDuration": 60
+    }
   }
 }

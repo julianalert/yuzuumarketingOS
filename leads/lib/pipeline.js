@@ -10,7 +10,8 @@
  */
 
 import { config, subreddits } from '../config.js'
-import { sweep } from './reddit.js'
+import { sweep as sweepOauth } from './reddit.js'
+import { sweep as sweepRss } from './rss.js'
 import { prefilter } from './prefilter.js'
 import { scoreCandidates, estimateCost } from './score.js'
 import { createStore } from './store.js'
@@ -21,7 +22,11 @@ export async function runScan({ notify = true, dryRun = false, log = () => {} } 
   const sinceMs = startedAt - config.lookbackHours * 3600_000
   const store = createStore()
 
-  log(`store driver: ${store.driver}`)
+  const hasOauth = Boolean(process.env.REDDIT_CLIENT_ID && process.env.REDDIT_CLIENT_SECRET)
+  const source = config.source === 'auto' ? (hasOauth ? 'oauth' : 'rss') : config.source
+  const sweep = source === 'oauth' ? sweepOauth : sweepRss
+
+  log(`store driver: ${store.driver} · reddit source: ${source}`)
 
   // 1 — fetch -----------------------------------------------------------------
   const { posts, errors: fetchErrors } = await sweep(subreddits, {
@@ -41,6 +46,7 @@ export async function runScan({ notify = true, dryRun = false, log = () => {} } 
     return {
       dryRun: true,
       startedAt,
+      source,
       stats,
       candidates: candidates.map((c) => ({
         id: c.id, subreddit: c.subreddit, title: c.title, preScore: c.preScore, preReasons: c.preReasons, url: c.url,
@@ -85,6 +91,7 @@ export async function runScan({ notify = true, dryRun = false, log = () => {} } 
     finishedAt: Date.now(),
     durationMs: Date.now() - startedAt,
     subreddits: subreddits.length,
+    source,
     model: config.model,
     stats,
     scored: scored.length,
