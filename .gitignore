@@ -2,3 +2,9 @@ node_modules/
 dist/
 .claude/
 .DS_Store
+
+# lead engine local store + digest previews
+.leads-data.json
+digest-preview.html
+.env
+.env.local

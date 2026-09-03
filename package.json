@@ -6,9 +6,15 @@
     "dev": "vite",
     "start": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "leads:scan": "node leads/scan.mjs",
+    "leads:dry": "node leads/scan.mjs --dry",
+    "leads:preview": "node leads/scan.mjs --no-email --preview"
   },
   "devDependencies": {
     "vite": "^6.2.0"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.72.0"
   }
 }

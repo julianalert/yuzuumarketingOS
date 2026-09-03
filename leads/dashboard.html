@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lead Engine — Yuzuu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..500&family=Schibsted+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F4F5F0; --raised:#FFFFFF;
+  --ink:#16201B; --ink-soft:#3D4B43; --sage:#6E7C73;
+  --line:#D9DED4; --line-strong:#B9C2B6;
+  --zest:#B9CC3A; --zest-wash:#EFF3D9;
+  --warn:#C25B3A; --warn-wash:#F7E9E3;
+  --display:"Newsreader",Georgia,serif;
+  --ui:"Schibsted Grotesk",system-ui,-apple-system,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,monospace;
+  --r-sm:3px; --r-md:8px; --r-lg:12px;
+  --gutter:32px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{background:var(--paper);color:var(--ink);font-family:var(--ui);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh}
+
+.micro{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.13em;text-transform:uppercase;color:var(--sage)}
+h1{font-family:var(--display);font-weight:400;font-size:clamp(28px,3.6vw,38px);line-height:1.14;letter-spacing:-.018em;text-wrap:balance}
+p{color:var(--ink-soft);max-width:72ch}
+.lede{margin-top:14px;font-size:16px;color:var(--sage);max-width:62ch}
+
+.mark{font-family:var(--display);font-size:19px;letter-spacing:-.02em;display:inline-flex;align-items:baseline;gap:2px;color:var(--ink);text-decoration:none}
+.mark i{width:5px;height:5px;background:var(--zest);border-radius:1px;transform:translateY(-1px);margin-left:1px}
+
+.bar{border-bottom:1px solid var(--line);background:var(--paper);position:sticky;top:0;z-index:20}
+.bar-in{max-width:1140px;margin:0 auto;padding:14px var(--gutter);display:flex;align-items:center;gap:20px}
+.crumbs{margin-left:auto;display:flex;align-items:center;gap:14px;font-family:var(--mono);font-size:11px;letter-spacing:.05em;color:var(--sage)}
+.crumbs a{color:var(--sage);text-decoration:none;border-bottom:1px solid transparent}
+.crumbs a:hover{color:var(--ink);border-bottom-color:var(--zest)}
+
+.header{max-width:1140px;margin:0 auto;padding:60px var(--gutter) 0}
+.header .micro{margin-bottom:16px}
+
+.wrap{max-width:1140px;margin:0 auto;padding:36px var(--gutter) 120px}
+.section-label{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--line-strong);margin:0 0 16px;display:flex;align-items:center;gap:10px}
+.section-label::after{content:"";flex:1;height:1px;background:var(--line)}
+
+/* ---- stat strip ---- */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--raised);margin-bottom:34px;overflow:hidden}
+.stat{padding:18px 22px;border-right:1px solid var(--line)}
+.stat:last-child{border-right:0}
+.stat b{display:block;font-family:var(--display);font-weight:400;font-size:28px;line-height:1.1;letter-spacing:-.02em}
+.stat span{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--sage)}
+.stat.hot b{color:var(--warn)}
+
+/* ---- controls ---- */
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:26px}
+.chip{
+  font-family:var(--mono);font-size:11px;letter-spacing:.05em;
+  background:var(--raised);border:1px solid var(--line);color:var(--ink-soft);
+  border-radius:999px;padding:6px 13px;cursor:pointer;transition:.14s;
+}
+.chip:hover{border-color:var(--line-strong)}
+.chip[aria-pressed="true"]{background:var(--zest-wash);border-color:var(--zest);color:var(--ink)}
+.spacer{flex:1}
+select,input[type=search]{
+  font-family:var(--ui);font-size:13px;color:var(--ink);background:var(--raised);
+  border:1px solid var(--line);border-radius:var(--r-md);padding:7px 11px;outline:none;
+}
+select:focus,input[type=search]:focus{border-color:var(--zest)}
+input[type=search]{width:220px}
+.btn{
+  font-family:var(--ui);font-size:13px;font-weight:500;color:var(--ink);background:var(--raised);
+  border:1px solid var(--line-strong);border-radius:var(--r-md);padding:7px 14px;cursor:pointer;
+  text-decoration:none;display:inline-flex;align-items:center;gap:6px;transition:.14s;
+}
+.btn:hover{border-color:var(--zest);box-shadow:0 4px 14px rgba(22,32,27,.05)}
+
+/* ---- lead card ---- */
+.lead{
+  background:var(--raised);border:1px solid var(--line);border-radius:var(--r-lg);
+  padding:22px 24px;margin-bottom:14px;display:grid;grid-template-columns:64px 1fr;gap:20px;
+  transition:border-color .15s,box-shadow .15s;
+}
+.lead:hover{border-color:var(--line-strong);box-shadow:0 8px 24px rgba(22,32,27,.05)}
+.lead.hot{border-left:3px solid var(--warn)}
+.score{font-family:var(--display);font-size:32px;line-height:1;letter-spacing:-.03em;color:var(--ink-soft)}
+.lead.hot .score{color:var(--warn)}
+.lead.warm .score{color:#8A9B2E}
+.score small{display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:var(--line-strong);margin-top:7px;text-transform:uppercase}
+
+.lead-meta{font-family:var(--mono);font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--sage);margin-bottom:9px;display:flex;flex-wrap:wrap;gap:9px;align-items:center}
+.tag{background:var(--zest-wash);border-radius:999px;padding:2px 9px;color:var(--ink-soft)}
+.lead h3{font-family:var(--display);font-weight:400;font-size:20px;line-height:1.28;letter-spacing:-.012em;margin-bottom:10px}
+.lead .why{font-size:14.5px;color:var(--ink-soft);margin-bottom:14px}
+.facts{display:grid;gap:7px;padding:13px 0 0;border-top:1px solid var(--line);font-size:13.5px;color:var(--ink-soft)}
+.facts b{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--sage);font-weight:500;margin-right:8px}
+.angle{
+  margin-top:14px;padding:13px 15px;background:var(--paper);border-left:3px solid var(--zest);
+  border-radius:0 var(--r-md) var(--r-md) 0;font-size:14px;color:var(--ink);position:relative;
+}
+.angle b{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--sage);font-weight:500;margin-bottom:5px}
+.copy{
+  position:absolute;top:9px;right:9px;font-family:var(--mono);font-size:10px;letter-spacing:.06em;
+  background:var(--raised);border:1px solid var(--line);border-radius:var(--r-sm);padding:3px 8px;
+  cursor:pointer;color:var(--sage);opacity:0;transition:.14s;
+}
+.angle:hover .copy,.copy:focus{opacity:1}
+.copy:hover{border-color:var(--zest);color:var(--ink)}
+.lead-foot{display:flex;align-items:center;gap:16px;margin-top:15px;padding-top:13px;border-top:1px solid var(--line)}
+.lead-foot a{font-size:13px;font-weight:500;color:var(--ink);text-decoration:none;border-bottom:2px solid var(--zest);padding-bottom:1px}
+.lead-foot span{font-family:var(--mono);font-size:11px;color:var(--sage)}
+
+.state{
+  border:1px dashed var(--line-strong);border-radius:var(--r-lg);padding:56px 32px;text-align:center;
+  color:var(--sage);font-family:var(--mono);font-size:12px;letter-spacing:.05em;
+}
+.state.err{border-color:var(--warn);background:var(--warn-wash);color:var(--warn)}
+
+.runs{margin-top:56px}
+.runs table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11.5px;color:var(--ink-soft)}
+.runs th{text-align:left;font-weight:500;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--line-strong);padding:0 14px 9px 0;border-bottom:1px solid var(--line)}
+.runs td{padding:9px 14px 9px 0;border-bottom:1px solid var(--line)}
+.runs td:last-child,.runs th:last-child{text-align:right;padding-right:0}
+
+footer{border-top:1px solid var(--line)}
+footer .bar-in{padding:22px var(--gutter);color:var(--sage);font-size:13px}
+
+@media (max-width:760px){
+  :root{--gutter:20px}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .stat:nth-child(2){border-right:0}
+  .stat:nth-child(-n+2){border-bottom:1px solid var(--line)}
+  .lead{grid-template-columns:1fr;gap:12px}
+  .score{display:flex;align-items:baseline;gap:10px}
+  .score small{margin:0}
+  input[type=search]{width:100%}
+}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <div class="bar-in">
+    <a class="mark" href="/">Yuzuu<i></i></a>
+    <div class="crumbs">
+      <a href="/">Marketing OS</a>
+      <span>/</span>
+      <span id="driver">leads</span>
+    </div>
+  </div>
+</div>
+
+<div class="header">
+  <div class="micro">Lead Engine</div>
+  <h1 id="headline">Reading Reddit so you don't have to.</h1>
+  <p class="lede" id="sub">Every morning, the newest posts across the creator subreddits get swept, filtered, and scored. What survives is here.</p>
+</div>
+
+<div class="wrap">
+
+  <div class="stats" id="stats" hidden>
+    <div class="stat hot"><b id="s-hot">—</b><span>High intent · 9+</span></div>
+    <div class="stat"><b id="s-total">—</b><span>Qualified leads</span></div>
+    <div class="stat"><b id="s-subs">—</b><span>Subreddits watched</span></div>
+    <div class="stat"><b id="s-cost">—</b><span>Last run cost</span></div>
+  </div>
+
+  <div class="controls" id="controls" hidden>
+    <button class="chip" data-min="9" aria-pressed="false">🔥 9+ only</button>
+    <button class="chip" data-min="8" aria-pressed="false">8+</button>
+    <select id="f-sub"><option value="">All subreddits</option></select>
+    <select id="f-type"><option value="">All creator types</option></select>
+    <select id="f-days">
+      <option value="7">Last 7 days</option>
+      <option value="14" selected>Last 14 days</option>
+      <option value="30">Last 30 days</option>
+      <option value="90">Last 90 days</option>
+    </select>
+    <input type="search" id="f-q" placeholder="Search titles &amp; pain points">
+    <div class="spacer"></div>
+    <a class="btn" id="csv" href="#">Export CSV ↓</a>
+  </div>
+
+  <div class="section-label" id="listLabel" hidden>All qualified</div>
+  <div id="list"><div class="state">Loading leads…</div></div>
+
+  <div class="runs" id="runs" hidden>
+    <div class="section-label">Run log</div>
+    <table>
+      <thead><tr><th>Morning</th><th>Fetched</th><th>To Claude</th><th>Kept</th><th>Emailed</th><th>Cost</th></tr></thead>
+      <tbody id="runsBody"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<footer>
+  <div class="bar-in">Yuzuu · Marketing OS · <span id="foot">lead engine</span></div>
+</footer>
+
+<script type="module">
+const $ = (id) => document.getElementById(id)
+const token = new URLSearchParams(location.search).get('token')
+const esc = (s='') => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
+
+const state = { leads: [], runs: [], meta: {}, min: 0, sub: '', type: '', days: 14, q: '' }
+
+function apiUrl(extra = {}) {
+  const p = new URLSearchParams({ days: String(state.days), min: '0', ...extra })
+  if (token) p.set('token', token)
+  return `/api/leads?${p}`
+}
+
+async function load() {
+  $('list').innerHTML = '<div class="state">Loading leads…</div>'
+  try {
+    const res = await fetch(apiUrl())
+    if (!res.ok) throw new Error(res.status === 401 ? 'Not authorised — this dashboard needs a ?token=' : `API returned ${res.status}`)
+    const data = await res.json()
+    state.leads = data.leads || []
+    state.runs = data.runs || []
+    state.meta = data.meta || {}
+    hydrate()
+  } catch (err) {
+    $('list').innerHTML = `<div class="state err">${esc(err.message)}</div>`
+  }
+}
+
+function hydrate() {
+  const { meta } = state
+  $('stats').hidden = false
+  $('controls').hidden = false
+  $('driver').textContent = `leads · ${meta.driver || '—'}`
+  $('s-subs').textContent = (meta.subreddits || []).length
+  const lastRun = state.runs[0]
+  $('s-cost').textContent = lastRun?.cost != null ? `$${lastRun.cost.toFixed(3)}` : '—'
+
+  fillSelect($('f-sub'), [...new Set(state.leads.map(l => l.subreddit))].sort(), v => `r/${v}`)
+  fillSelect($('f-type'), [...new Set(state.leads.map(l => l.creatorType))].filter(Boolean).sort())
+
+  if (state.runs.length) {
+    $('runs').hidden = false
+    $('runsBody').innerHTML = state.runs.map(r => `
+      <tr>
+        <td>${new Date(r.startedAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})}</td>
+        <td>${r.stats?.fetched ?? '—'}</td>
+        <td>${r.stats?.passed ?? '—'}</td>
+        <td>${r.qualified ?? 0}</td>
+        <td>${r.emailed ? '✓' : '·'}</td>
+        <td>${r.cost != null ? '$' + r.cost.toFixed(3) : '—'}</td>
+      </tr>`).join('')
+  }
+  render()
+}
+
+function fillSelect(el, values, label = v => v) {
+  const keep = el.value
+  el.length = 1
+  for (const v of values) el.add(new Option(label(v), v))
+  el.value = keep
+}
+
+function visible() {
+  const q = state.q.toLowerCase()
+  return state.leads.filter(l =>
+    l.score >= state.min &&
+    (!state.sub || l.subreddit === state.sub) &&
+    (!state.type || l.creatorType === state.type) &&
+    (!q || `${l.title} ${l.painPoint} ${l.outreachAngle} ${l.reason}`.toLowerCase().includes(q))
+  )
+}
+
+function render() {
+  const leads = visible()
+  const hot = state.leads.filter(l => l.score >= 9).length
+  $('s-hot').textContent = hot
+  $('s-total').textContent = state.leads.length
+  $('headline').textContent = state.leads.length
+    ? `${state.leads.length} creators worth a DM${hot ? `, ${hot} of them hot` : ''}.`
+    : 'Nothing has cleared the bar yet.'
+  $('foot').textContent = `${state.meta.subreddits?.length || 0} subreddits · threshold ${state.meta.threshold ?? 7}/10 · ${state.leads.length} stored`
+  $('listLabel').textContent = state.min >= 9 ? 'High intent' : state.min >= 8 ? 'Strong' : 'All qualified'
+  $('listLabel').hidden = leads.length === 0
+
+  if (leads.length === 0) {
+    $('list').innerHTML = `<div class="state">${state.leads.length ? 'No leads match these filters.' : 'No qualified leads stored yet. The first cron run will fill this in.'}</div>`
+    return
+  }
+  $('list').innerHTML = leads.map(card).join('')
+
+  for (const btn of document.querySelectorAll('.copy')) {
+    btn.addEventListener('click', async () => {
+      await navigator.clipboard.writeText(btn.dataset.text)
+      const was = btn.textContent
+      btn.textContent = 'copied'
+      setTimeout(() => { btn.textContent = was }, 1200)
+    })
+  }
+}
+
+function card(l) {
+  const heat = l.score >= 9 ? 'hot' : l.score >= 8 ? 'warm' : ''
+  const ago = timeAgo(l.createdUtc)
+  return `
+  <article class="lead ${heat}">
+    <div class="score">${l.score.toFixed(1)}<small>/ 10</small></div>
+    <div>
+      <div class="lead-meta">
+        <span>r/${esc(l.subreddit)}</span>
+        ${l.creatorType && l.creatorType !== 'unclear' ? `<span class="tag">${esc(l.creatorType)}</span>` : ''}
+        <span>${ago}</span>
+      </div>
+      <h3>${esc(l.title)}</h3>
+      <p class="why">${esc(l.reason)}</p>
+      ${(l.painPoint || l.creatorSignal) ? `<div class="facts">
+        ${l.painPoint ? `<div><b>Pain</b>${esc(l.painPoint)}</div>` : ''}
+        ${l.creatorSignal ? `<div><b>Audience</b>${esc(l.creatorSignal)}</div>` : ''}
+      </div>` : ''}
+      ${l.outreachAngle ? `<div class="angle">
+        <b>Open with</b>${esc(l.outreachAngle)}
+        <button class="copy" data-text="${esc(l.outreachAngle)}">copy</button>
+      </div>` : ''}
+      <div class="lead-foot">
+        <a href="${esc(l.url)}" target="_blank" rel="noopener">Open on Reddit →</a>
+        <span>u/${esc(l.author)} · ${l.upvotes}▲ · ${l.comments} comments</span>
+      </div>
+    </div>
+  </article>`
+}
+
+function timeAgo(ms) {
+  const h = Math.floor((Date.now() - ms) / 36e5)
+  if (h < 1) return 'just now'
+  if (h < 24) return `${h}h ago`
+  const d = Math.floor(h / 24)
+  return d === 1 ? 'yesterday' : `${d}d ago`
+}
+
+// --- controls ---------------------------------------------------------------
+for (const chip of document.querySelectorAll('.chip')) {
+  chip.addEventListener('click', () => {
+    const on = chip.getAttribute('aria-pressed') === 'true'
+    for (const c of document.querySelectorAll('.chip')) c.setAttribute('aria-pressed', 'false')
+    chip.setAttribute('aria-pressed', String(!on))
+    state.min = on ? 0 : Number(chip.dataset.min)
+    render()
+  })
+}
+$('f-sub').addEventListener('change', e => { state.sub = e.target.value; render() })
+$('f-type').addEventListener('change', e => { state.type = e.target.value; render() })
+$('f-days').addEventListener('change', e => { state.days = Number(e.target.value); load() })
+$('f-q').addEventListener('input', e => { state.q = e.target.value; render() })
+$('csv').addEventListener('click', e => {
+  e.preventDefault()
+  location.href = apiUrl({ format: 'csv', min: String(state.min || 0) })
+})
+
+load()
+</script>
+</body>
+</html>
