@@ -63,7 +63,7 @@ const RESULT_SCHEMA = {
         type: 'object',
         properties: {
           id: { type: 'string' },
-          score: { type: 'integer', minimum: 0, maximum: 10 },
+          score: { type: 'integer' }, // 0-10; structured outputs reject minimum/maximum
           reason: { type: 'string' },
           pain_point: { type: 'string' },
           creator_signal: { type: 'string' },
@@ -145,6 +145,11 @@ export async function scoreCandidates(candidates) {
       for (const r of results) {
         const post = byId.get(r.id)
         if (!post) continue // model invented an id; ignore rather than trust it
+
+        // The schema can no longer pin the range, so enforce it here. An
+        // out-of-range score would otherwise sail past the >= 7 gate.
+        const score = Math.max(0, Math.min(10, Math.round(Number(r.score) || 0)))
+
         scored.push({
           id: post.id,
           subreddit: post.subreddit,
@@ -157,7 +162,7 @@ export async function scoreCandidates(candidates) {
           comments: post.comments,
           preScore: post.preScore,
           preReasons: post.preReasons,
-          score: r.score,
+          score,
           reason: r.reason,
           painPoint: r.pain_point,
           creatorSignal: r.creator_signal,

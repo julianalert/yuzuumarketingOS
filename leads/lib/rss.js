@@ -117,8 +117,15 @@ async function fetchFeed(subreddit, limit) {
       continue
     }
 
+    // A 403 from a datacenter IP is usually transient — Reddit shedding load
+    // rather than a standing ban — and a later subreddit in the same sweep
+    // often succeeds. Back off and retry before writing the subreddit off.
     if (res.status === 403) {
-      throw new Error('403 — this IP is blocked by Reddit (common for datacenter IPs)')
+      if (attemptNo === MAX_RETRIES) {
+        throw new Error(`403 after ${MAX_RETRIES} retries — this IP is being refused by Reddit`)
+      }
+      await sleep(Math.min(60_000, (attemptNo + 1) * 20_000))
+      continue
     }
     if (!res.ok) throw new Error(`feed returned ${res.status}`)
 
