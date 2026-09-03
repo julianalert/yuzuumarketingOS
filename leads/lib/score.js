@@ -104,9 +104,16 @@ function renderPost(post) {
 async function scoreBatch(posts) {
   const response = await client.messages.create({
     model: config.model,
-    max_tokens: 8000,
+    // Sonnet 5 thinks adaptively by default and those tokens come out of
+    // max_tokens, so leave room: a truncated response is unparseable JSON.
+    max_tokens: 16000,
+    // Scoring a post against fixed criteria is classification, not reasoning.
+    // Low effort is faster, cheaper, and leaves more budget for the answer.
+    output_config: {
+      effort: 'low',
+      format: { type: 'json_schema', schema: RESULT_SCHEMA },
+    },
     system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
-    output_config: { format: { type: 'json_schema', schema: RESULT_SCHEMA } },
     messages: [
       {
         role: 'user',
@@ -115,12 +122,35 @@ async function scoreBatch(posts) {
     ],
   })
 
-  const text = response.content.find((b) => b.type === 'text')?.text ?? '{}'
-  const parsed = JSON.parse(text)
-  return {
-    results: parsed.results ?? [],
-    usage: response.usage,
+  if (response.stop_reason === 'max_tokens') {
+    throw new Error(
+      `response hit max_tokens (${response.usage?.output_tokens} out) — lower claudeBatchSize`,
+    )
   }
+  if (response.stop_reason === 'refusal') {
+    throw new Error(`model refused: ${response.stop_details?.category ?? 'unknown'}`)
+  }
+
+  const text = response.content.find((b) => b.type === 'text')?.text
+  if (!text) {
+    // Previously this fell back to '{}' and reported zero leads with no error,
+    // which is indistinguishable from a genuinely quiet morning.
+    const kinds = response.content.map((b) => b.type).join(', ') || 'nothing'
+    throw new Error(`no text block in response (got: ${kinds}; stop_reason=${response.stop_reason})`)
+  }
+
+  let parsed
+  try {
+    parsed = JSON.parse(text)
+  } catch (err) {
+    throw new Error(`unparseable JSON (${err.message}) — response began: ${text.slice(0, 160)}`)
+  }
+
+  if (!Array.isArray(parsed.results)) {
+    throw new Error(`response had no results array — keys: ${Object.keys(parsed).join(', ')}`)
+  }
+
+  return { results: parsed.results, usage: response.usage }
 }
 
 /**
