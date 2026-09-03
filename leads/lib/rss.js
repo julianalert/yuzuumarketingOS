@@ -18,7 +18,17 @@
 // (x-ratelimit-remaining hits 0 after a single call, reset ~44-60s). Pacing at
 // the limit is far faster than hammering and eating the backoff.
 const FEED_DELAY_MS = Number(process.env.LEADS_RSS_DELAY_MS || 62_000)
-const MAX_RETRIES = 4
+const MAX_RETRIES = 2
+
+/**
+ * Wall-clock ceiling for the whole fetch phase.
+ *
+ * Vercel kills the function at 300s and returns nothing at all — no logs, no
+ * partial result. Retrying a stubborn subreddit until the platform pulls the
+ * plug loses the posts we already have, so fetching stops at this deadline and
+ * the run continues with whatever it collected.
+ */
+const DEFAULT_BUDGET_MS = Number(process.env.LEADS_FETCH_BUDGET_MS || 170_000)
 
 function userAgent() {
   return process.env.REDDIT_USER_AGENT || 'nodejs:co.yuzuu.leadengine:1.0 (by /u/yuzuu)'
@@ -100,7 +110,7 @@ function cleanBody(post) {
   return { ...post, body: /^https?:\/\/\S+$/.test(stripped) ? '' : stripped }
 }
 
-async function fetchFeed(subreddit, limit) {
+async function fetchFeed(subreddit, limit, deadline = Infinity) {
   const url = `https://www.reddit.com/r/${subreddit}/new.rss?limit=${limit}`
 
   for (let attemptNo = 0; attemptNo <= MAX_RETRIES; attemptNo++) {
@@ -113,6 +123,7 @@ async function fetchFeed(subreddit, limit) {
       const reset = Number(res.headers.get('x-ratelimit-reset') || 0)
       const wait = Math.min(60_000, (reset > 0 ? reset : 2 ** attemptNo * 5) * 1000 + 1000)
       if (attemptNo === MAX_RETRIES) throw new Error(`rate limited after ${MAX_RETRIES} retries`)
+      if (Date.now() + wait > deadline) throw new Error('rate limited, no time left to retry')
       await sleep(wait)
       continue
     }
@@ -124,7 +135,9 @@ async function fetchFeed(subreddit, limit) {
       if (attemptNo === MAX_RETRIES) {
         throw new Error(`403 after ${MAX_RETRIES} retries — this IP is being refused by Reddit`)
       }
-      await sleep(Math.min(60_000, (attemptNo + 1) * 20_000))
+      const wait = (attemptNo + 1) * 15_000
+      if (Date.now() + wait > deadline) throw new Error('403, no time left to retry')
+      await sleep(wait)
       continue
     }
     if (!res.ok) throw new Error(`feed returned ${res.status}`)
@@ -134,9 +147,8 @@ async function fetchFeed(subreddit, limit) {
 }
 
 /** Fetch the newest posts for one subreddit. */
-export async function fetchNew(subreddit, { limit = 100, sinceMs = 0 } = {}) {
-  // The feed caps out around 25 regardless of what we ask for.
-  const xml = await fetchFeed(subreddit, Math.min(100, limit))
+export async function fetchNew(subreddit, { limit = 100, sinceMs = 0, deadline = Infinity } = {}) {
+  const xml = await fetchFeed(subreddit, Math.min(100, limit), deadline)
   const entries = xml.match(/<entry>[\s\S]*?<\/entry>/g) ?? []
 
   return entries
@@ -148,16 +160,27 @@ export async function fetchNew(subreddit, { limit = 100, sinceMs = 0 } = {}) {
  * Sweep every configured subreddit, serially and politely. One subreddit
  * failing must never take the run down.
  */
-export async function sweep(subs, { limit, sinceMs }) {
+export async function sweep(subs, { limit, sinceMs, budgetMs = DEFAULT_BUDGET_MS }) {
+  const deadline = Date.now() + budgetMs
   const posts = []
   const errors = []
 
   for (const [i, sub] of subs.entries()) {
     const name = typeof sub === 'string' ? sub : sub.name
-    if (i > 0) await sleep(FEED_DELAY_MS)
+
+    // Leave room for at least one request; a fetch we cannot finish is worse
+    // than one we never start, because it takes the whole run down with it.
+    if (Date.now() + 10_000 > deadline) {
+      errors.push({ subreddit: name, error: 'skipped — fetch budget exhausted' })
+      continue
+    }
+
+    if (i > 0) {
+      await sleep(Math.max(0, Math.min(FEED_DELAY_MS, deadline - Date.now() - 10_000)))
+    }
 
     try {
-      const found = await fetchNew(name, { limit, sinceMs })
+      const found = await fetchNew(name, { limit, sinceMs, deadline })
       posts.push(...found.map((p) => ({ ...p, weight: (typeof sub === 'object' && sub.weight) || 1 })))
     } catch (err) {
       errors.push({ subreddit: name, error: err.message })
