@@ -8,6 +8,8 @@
  *   GET /api/probe?key=$CRON_SECRET
  */
 
+import { redisEnv } from '../leads/lib/store.js'
+
 export const maxDuration = 60
 
 export default async function handler(req, res) {
@@ -15,6 +17,21 @@ export default async function handler(req, res) {
   const url = new URL(req.url, 'http://localhost')
   if (!secret || url.searchParams.get('key') !== secret) {
     return res.status(401).json({ error: 'unauthorized' })
+  }
+
+  // Which storage credentials can this deployment see? Names only — never
+  // values — so a misnamed or missing pair is diagnosable from the outside.
+  const found = redisEnv()
+  const storage = {
+    resolved: found ? 'redis' : 'file (NOT PERSISTENT — connect a Redis store)',
+    via: found?.via ?? null,
+    candidateVars: Object.keys(process.env)
+      .filter((k) => /KV_|UPSTASH|REDIS/i.test(k))
+      .sort(),
+  }
+
+  if (url.searchParams.get('storage') === '1') {
+    return res.status(200).json({ storage })
   }
 
   const sub = url.searchParams.get('sub') || 'InstagramMarketing'
@@ -43,6 +60,7 @@ export default async function handler(req, res) {
         remaining: r.headers.get('x-ratelimit-remaining'),
         resetSeconds: r.headers.get('x-ratelimit-reset'),
       },
+      storage,
       verdict:
         r.status === 200 && entries > 0
           ? `WORKS — Reddit served ${entries} posts to this deployment`

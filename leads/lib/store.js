@@ -23,10 +23,28 @@ const KEYS = {
 // Redis driver (Upstash REST — also what Vercel KV speaks)
 // ---------------------------------------------------------------------------
 
-function redisEnv() {
+/**
+ * Find the Redis REST credentials.
+ *
+ * Vercel's own KV integration injects KV_REST_API_URL/TOKEN and the Upstash
+ * marketplace one injects UPSTASH_REDIS_REST_URL/TOKEN — but when a store is
+ * connected under a custom name, both get prefixed with it
+ * (LEADS_KV_REST_API_URL and so on). So fall back to pattern-matching any
+ * URL/TOKEN pair rather than silently dropping to the file driver.
+ */
+export function redisEnv() {
   const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL
   const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN
-  return url && token ? { url, token } : null
+  if (url && token) return { url, token, via: 'standard' }
+
+  const urlKey = Object.keys(process.env).find(
+    (k) => /(REST_API_URL|REDIS_REST_URL)$/.test(k) && process.env[k],
+  )
+  if (!urlKey) return null
+
+  const tokenKey = urlKey.replace(/URL$/, 'TOKEN')
+  const prefixed = process.env[tokenKey]
+  return prefixed ? { url: process.env[urlKey], token: prefixed, via: urlKey } : null
 }
 
 function createRedisDriver({ url, token }) {
@@ -152,6 +170,7 @@ export function createStore() {
 
   return {
     driver: driver.kind,
+    via: redis?.via ?? null,
 
     /** Ids of every post already analyzed, so we never pay to score one twice. */
     async getSeen() {

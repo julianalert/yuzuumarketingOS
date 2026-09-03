@@ -70,6 +70,7 @@ export default async function handler(req, res) {
         threshold: config.minLeadScore,
         subreddits: subreddits.map((s) => s.name),
         driver: store.driver,
+        driverVia: store.via,
         generatedAt: Date.now(),
       },
     })
