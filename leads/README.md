@@ -6,7 +6,7 @@ left, and emails the creators worth a DM to hello@yuzuu.co.
 ```
 06:00 UTC — Vercel cron hits /api/cron/scan
      ↓
-sweep r/… × 12 via Reddit OAuth (/r/{sub}/new)
+sweep 3 subreddits via public Atom feeds (/r/{sub}/new.rss)
      ↓
 drop post ids already analyzed          ← store
      ↓
@@ -24,9 +24,27 @@ store → build HTML digest → email via Resend
 dashboard at /leads
 ```
 
-Two stages is the whole trick. Stage 1 costs nothing and kills roughly 90% of
-the sweep, so stage 2 only ever reads plausible leads — a run lands around
-**$0.02**.
+Two stages is the whole trick. Stage 1 costs nothing and kills ~80% of the
+sweep, so stage 2 only ever reads plausible leads. Measured on live data:
+108 posts fetched, 21 reaching Claude, about **$0.01** a run.
+
+## Where posts come from
+
+Reddit's Responsible Builder Policy (Nov 2025) put the OAuth API behind manual
+approval, and the unauthenticated `.json` endpoints now return 403. The public
+per-subreddit Atom feed still works and carries the full selftext, so that is
+the default source. It costs two things:
+
+- **Rate limit: ~1 request per 60s per IP.** The sweep paces itself at that
+  rate, which is why 3 subreddits take ~124s. Each extra subreddit adds ~62s,
+  and Vercel's function ceiling is 300s — that limit, not usefulness, is why
+  the list is short.
+- **No upvote or comment counts.** Nothing in the scoring path used them; they
+  show as empty in the dashboard and CSV.
+
+`config.source` selects between them: `rss` (default when no Reddit credentials
+exist), `oauth` (if your app gets approved — richer data, no rate-limit pain),
+or `auto`.
 
 ## Files
 
@@ -46,9 +64,12 @@ the sweep, so stage 2 only ever reads plausible leads — a run lands around
 
 ## Setup
 
-**1. Reddit app** — https://www.reddit.com/prefs/apps → *create another app*
-→ type **script**. The client id sits under the app name; the secret is next to
-`secret`.
+**1. Reddit** — nothing to do. The RSS source needs no credentials.
+
+If you later get an app approved under the Responsible Builder Policy
+(https://www.reddit.com/prefs/apps → *create another app* → type **script**),
+set `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET` and the engine switches to
+OAuth on its own — no code change.
 
 **2. Resend** — verify `yuzuu.co` at https://resend.com/domains, then create an
 API key. Until the domain is verified, set `DIGEST_FROM` to
@@ -63,8 +84,8 @@ local JSON file, which is fine on a laptop and useless on serverless.
 
 | Variable | Required | Notes |
 |---|---|---|
-| `REDDIT_CLIENT_ID` | yes | from the script app |
-| `REDDIT_CLIENT_SECRET` | yes | |
+| `REDDIT_CLIENT_ID` | no | only if your Reddit app gets approved; presence switches the source to OAuth |
+| `REDDIT_CLIENT_SECRET` | no | as above |
 | `REDDIT_USER_AGENT` | recommended | e.g. `nodejs:co.yuzuu.leadengine:1.0 (by /u/yourname)` |
 | `ANTHROPIC_API_KEY` | yes | |
 | `CRON_SECRET` | yes | any long random string; Vercel sends it as a bearer token |
@@ -75,6 +96,8 @@ local JSON file, which is fine on a laptop and useless on serverless.
 | `LEADS_MODEL` | no | defaults to `claude-sonnet-5` |
 | `LEADS_DASHBOARD_URL` | no | the link at the bottom of the email |
 | `LEADS_ACCESS_TOKEN` | no | set it and `/api/leads` requires `?token=…`, so the dashboard needs `/leads?token=…` |
+| `LEADS_REDDIT_SOURCE` | no | `rss`, `oauth`, or `auto` (default) |
+| `LEADS_RSS_DELAY_MS` | no | pause between feeds, default 62000. Lower it and you will eat 429 backoff instead |
 
 **5. Deploy.** The cron is declared in `vercel.json` and starts on the next
 deploy. Note that Vercel's Hobby plan runs crons once a day at an approximate
@@ -100,10 +123,18 @@ sending it. `npm run leads:scan` does the real thing, email included.
 You can also trigger the deployed cron directly:
 
 ```bash
-curl "https://your-domain.vercel.app/api/cron/scan?key=$CRON_SECRET&dry=1"
+# one subreddit, ~1s — proves the whole path without waiting out a sweep
+curl -sS -w '\n--- %{http_code} in %{time_total}s ---\n' \
+  "https://your-domain.vercel.app/api/cron/scan?key=$CRON_SECRET&dry=1&subs=1"
 ```
 
-Drop `&dry=1` for a real run, add `&notify=0` to skip the email.
+Drop `&subs=1` for the full sweep, `&dry=1` for a real run, add `&notify=0` to
+skip the email. Always pass `-w`: a full sweep prints nothing for minutes and
+then dumps everything at once, which looks exactly like a hang.
+
+Check `logs[0]` in the response — it names the store driver. If it says `file`
+rather than `redis`, nothing is persisting and every run will re-score the same
+posts.
 
 ## Tuning
 
@@ -116,6 +147,10 @@ Everything lives in `config.js`.
   re-run `npm run leads:dry` to see what it removes.
 - **Costs creeping up** — `maxToClaude` is a hard ceiling per run. Candidates
   are sorted by pre-score first, so the cap always cuts the weakest tail.
+- **Runs timing out** — each subreddit costs ~62s of rate-limit waiting. Three
+  fit inside Vercel's 300s with room; four measured 242s on the *dry* path
+  alone, before Claude. Add a subreddit only if you also raise `maxDuration`
+  (Pro allows more) or split fetching from scoring across invocations.
 - **New subreddit** — add it to `subreddits` with a `weight`. A subreddit that
   is private, banned or renamed logs an error and the run continues.
 

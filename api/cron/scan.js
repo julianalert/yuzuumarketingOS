@@ -26,15 +26,21 @@ export default async function handler(req, res) {
   const url = new URL(req.url, 'http://localhost')
   const dryRun = url.searchParams.get('dry') === '1'
   const notify = url.searchParams.get('notify') !== '0'
+  // ?subs=1 fetches only the first subreddit — a seconds-long smoke test of the
+  // whole path, rather than waiting out a multi-minute sweep to learn nothing.
+  const maxSubs = Number(url.searchParams.get('subs')) || 0
 
+  const startedAt = Date.now()
   const logs = []
   try {
-    const result = await runScan({ dryRun, notify, log: (m) => logs.push(m) })
+    const result = await runScan({ dryRun, notify, maxSubs, log: (m) => logs.push(m) })
     // The digest HTML is large and already in the inbox — don't echo it.
     const { html, ...rest } = result
-    return res.status(200).json({ ok: true, logs, ...rest })
+    return res.status(200).json({ ok: true, elapsedMs: Date.now() - startedAt, logs, ...rest })
   } catch (err) {
     console.error('[leads] scan failed', err)
-    return res.status(500).json({ ok: false, error: err.message, logs })
+    return res
+      .status(500)
+      .json({ ok: false, error: err.message, elapsedMs: Date.now() - startedAt, logs })
   }
 }

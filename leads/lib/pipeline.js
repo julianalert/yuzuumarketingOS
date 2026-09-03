@@ -17,7 +17,7 @@ import { scoreCandidates, estimateCost } from './score.js'
 import { createStore } from './store.js'
 import { buildDigest, sendDigest, digestSubject } from './digest.js'
 
-export async function runScan({ notify = true, dryRun = false, log = () => {} } = {}) {
+export async function runScan({ notify = true, dryRun = false, maxSubs = 0, log = () => {} } = {}) {
   const startedAt = Date.now()
   const sinceMs = startedAt - config.lookbackHours * 3600_000
   const store = createStore()
@@ -29,11 +29,15 @@ export async function runScan({ notify = true, dryRun = false, log = () => {} } 
   log(`store driver: ${store.driver} · reddit source: ${source}`)
 
   // 1 — fetch -----------------------------------------------------------------
-  const { posts, errors: fetchErrors } = await sweep(subreddits, {
+  // maxSubs exists for debugging: the RSS source needs ~62s per subreddit, so a
+  // full sweep is minutes long and a one-subreddit run proves the path in seconds.
+  const targets = maxSubs > 0 ? subreddits.slice(0, maxSubs) : subreddits
+
+  const { posts, errors: fetchErrors } = await sweep(targets, {
     limit: config.postsPerSubreddit,
     sinceMs,
   })
-  log(`fetched ${posts.length} posts from ${subreddits.length} subreddits`)
+  log(`fetched ${posts.length} posts from ${targets.length} subreddits`)
   for (const e of fetchErrors) log(`  ! r/${e.subreddit}: ${e.error}`)
 
   // 2 — dedupe + deterministic filter ------------------------------------------
@@ -90,7 +94,7 @@ export async function runScan({ notify = true, dryRun = false, log = () => {} } 
     startedAt,
     finishedAt: Date.now(),
     durationMs: Date.now() - startedAt,
-    subreddits: subreddits.length,
+    subreddits: targets.length,
     source,
     model: config.model,
     stats,
