@@ -23,6 +23,7 @@ const CSV_COLUMNS = [
   ['upvotes', (l) => l.upvotes ?? ''],
   ['comments', (l) => l.comments ?? ''],
   ['posted_at', (l) => new Date(l.createdUtc).toISOString()],
+  ['source', (l) => (l.manual ? 'manual' : 'scan')],
   ['url', (l) => l.url],
 ]
 

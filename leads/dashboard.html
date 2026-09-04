@@ -309,6 +309,7 @@ function card(l) {
       <div class="lead-meta">
         <span>r/${esc(l.subreddit)}</span>
         ${l.creatorType && l.creatorType !== 'unclear' ? `<span class="tag">${esc(l.creatorType)}</span>` : ''}
+        ${l.manual ? `<span class="tag">hand-added</span>` : ''}
         <span>${ago}</span>
       </div>
       <h3>${esc(l.title)}</h3>

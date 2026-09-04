@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "leads:scan": "node leads/scan.mjs",
     "leads:dry": "node leads/scan.mjs --dry",
-    "leads:preview": "node leads/scan.mjs --no-email --preview"
+    "leads:preview": "node leads/scan.mjs --no-email --preview",
+    "leads:add": "node leads/add-manual.mjs"
   },
   "devDependencies": {
     "vite": "^6.2.0"

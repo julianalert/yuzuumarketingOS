@@ -59,6 +59,8 @@ or `auto`.
 | `lib/pipeline.js` | Orchestrates the above and records every run. |
 | `dashboard.html` | Served at `/leads` (copied into the build by `vite.config.js`). |
 | `scan.mjs` | Local runner. |
+| `add-manual.mjs` | Puts hand-found leads from `manual.json` into the store. |
+| `manual.json` | Leads added by hand — posts the scanner's window never covered. |
 | `../api/cron/scan.js` | Cron entrypoint, guarded by `CRON_SECRET`. |
 | `../api/leads.js` | Read API for the dashboard + CSV export. |
 
@@ -136,6 +138,35 @@ Check `logs[0]` in the response — it names the store driver. If it says `file`
 rather than `redis`, nothing is persisting and every run will re-score the same
 posts.
 
+## Adding leads by hand
+
+The scanner only sees the last 30 hours of four subreddits. A lead found any
+other way — an older post, a subreddit off the watchlist, research done
+elsewhere — gets in through `manual.json`:
+
+```bash
+npm run leads:add -- --dry   # print what would be written
+npm run leads:add            # write it
+```
+
+Each entry needs `id` (the Reddit post id from its URL), `subreddit`, `title`,
+`url`, `score` and `reason`; `author`, `postedAt`, `body`, `painPoint`,
+`creatorSignal`, `creatorType` and `outreachAngle` are optional but are what the
+dashboard card actually shows. Without `postedAt` the card claims the lead was
+posted today.
+
+Entries land with `manual: true`, which pins them: they ignore the dashboard's
+`days=` window (a curated four-month-old post should not vanish behind a date
+filter) and `prune()` leaves them alone. Because the id is the real post id,
+they are also marked seen, so a later sweep will not re-score them. Re-running
+overwrites by id, so editing `manual.json` and running again is the way to
+correct one.
+
+**This writes wherever the environment points.** With no Redis credentials it
+writes `.leads-data.json` locally and the live dashboard never changes — the
+script warns when that happens. Run it with the production env (`vercel env
+pull`, or the vars exported) to reach the real store.
+
 ## Tuning
 
 Everything lives in `config.js`.
@@ -167,3 +198,6 @@ Three keys, all pruned past `retentionDays` (45) on every run:
 
 Only posts Claude actually read are marked seen. If a batch fails, those posts
 are retried on the next run rather than lost.
+
+Leads carrying `manual: true` are exempt from both the retention prune and the
+dashboard's date window — see "Adding leads by hand".

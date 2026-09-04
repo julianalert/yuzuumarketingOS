@@ -188,12 +188,18 @@ export function createStore() {
       await driver.hset(KEYS.leads, Object.fromEntries(leads.map((l) => [l.id, JSON.stringify(l)])))
     },
 
-    /** Every stored lead, newest post first. */
+    /**
+     * Every stored lead, best first.
+     *
+     * Hand-added leads (`manual: true`) ignore the date window: they were
+     * curated on purpose, often from posts older than the lookback, and
+     * hiding them behind a `days=` filter would defeat the point of adding them.
+     */
     async getLeads({ sinceMs = 0, minScore = 0 } = {}) {
       const raw = await driver.hgetall(KEYS.leads)
       return Object.values(raw)
         .map((v) => (typeof v === 'string' ? JSON.parse(v) : v))
-        .filter((l) => l.createdUtc >= sinceMs && l.score >= minScore)
+        .filter((l) => (l.manual || l.createdUtc >= sinceMs) && l.score >= minScore)
         .sort((a, b) => b.score - a.score || b.createdUtc - a.createdUtc)
     },
 
@@ -218,7 +224,8 @@ export function createStore() {
       const leads = await driver.hgetall(KEYS.leads)
       const staleLeads = Object.entries(leads)
         .map(([id, v]) => [id, typeof v === 'string' ? JSON.parse(v) : v])
-        .filter(([, l]) => l.createdUtc < cutoff)
+        // Manual leads are never pruned — someone put them there deliberately.
+        .filter(([, l]) => !l.manual && l.createdUtc < cutoff)
         .map(([id]) => id)
 
       await driver.hdel(KEYS.seen, staleSeen)
