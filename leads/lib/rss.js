@@ -28,7 +28,7 @@ const MAX_RETRIES = 2
  * plug loses the posts we already have, so fetching stops at this deadline and
  * the run continues with whatever it collected.
  */
-const DEFAULT_BUDGET_MS = Number(process.env.LEADS_FETCH_BUDGET_MS || 170_000)
+const DEFAULT_BUDGET_MS = Number(process.env.LEADS_FETCH_BUDGET_MS || 205_000)
 
 function userAgent() {
   return process.env.REDDIT_USER_AGENT || 'nodejs:co.yuzuu.leadengine:1.0 (by /u/yuzuu)'

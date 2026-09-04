@@ -10,6 +10,7 @@ export const subreddits = [
   { name: 'DigitalProductSellers', weight: 1.2 },
   { name: 'ContentCreators', weight: 1.1 },
   { name: 'InstagramMarketing', weight: 1 },
+  { name: 'socialmedia', weight: 0.8 },
 ]
 
 export const config = {
