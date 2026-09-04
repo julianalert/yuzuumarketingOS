@@ -17,9 +17,26 @@
  */
 
 import { readFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createStore } from './lib/store.js'
+
+// Load .env.local BEFORE the store is imported — it picks its driver from the
+// environment at import time, so a later load would come too late and the run
+// would quietly write to the local file instead of the deployed store.
+for (const name of ['.env.local', '.env']) {
+  const file = resolve(process.cwd(), name)
+  if (!existsSync(file)) continue
+  try {
+    process.loadEnvFile(file)
+    console.log(`loaded ${name}`)
+  } catch (err) {
+    console.warn(`could not read ${name}: ${err.message}`)
+  }
+  break
+}
+
+const { createStore } = await import('./lib/store.js')
 
 const here = dirname(fileURLToPath(import.meta.url))
 
