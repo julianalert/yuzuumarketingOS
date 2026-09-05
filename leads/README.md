@@ -56,6 +56,7 @@ or `auto`.
 | `lib/score.js` | Stage 2. Batched Claude calls with a JSON schema and a cached system prompt. |
 | `lib/store.js` | Upstash/Vercel KV in production, a local JSON file otherwise. |
 | `lib/digest.js` | The morning email. |
+| `lib/first-message.js` | Writes the opening DM for one lead, in the founder's voice. |
 | `lib/pipeline.js` | Orchestrates the above and records every run. |
 | `dashboard.html` | Served at `/leads` (copied into the build by `vite.config.js`). |
 | `scan.mjs` | Local runner. |
@@ -63,6 +64,8 @@ or `auto`.
 | `manual.json` | Leads added by hand — posts the scanner's window never covered. |
 | `../api/cron/scan.js` | Cron entrypoint, guarded by `CRON_SECRET`. |
 | `../api/leads.js` | Read API for the dashboard + CSV export. |
+| `../api/message.js` | Backs the dashboard's "Write first message" button. |
+| `../api/reached.js` | Marks a lead reached out, or undoes it. |
 
 ## Setup
 
@@ -89,13 +92,15 @@ local JSON file, which is fine on a laptop and useless on serverless.
 | `REDDIT_CLIENT_ID` | no | only if your Reddit app gets approved; presence switches the source to OAuth |
 | `REDDIT_CLIENT_SECRET` | no | as above |
 | `REDDIT_USER_AGENT` | recommended | e.g. `nodejs:co.yuzuu.leadengine:1.0 (by /u/yourname)` |
-| `ANTHROPIC_API_KEY` | yes | |
+| `ANTHROPIC_API_KEY` | yes | scoring |
+| `OPENAI_API_KEY` | yes | the "Write first message" button only; scoring does not use it |
 | `CRON_SECRET` | yes | any long random string; Vercel sends it as a bearer token |
 | `RESEND_API_KEY` | yes | omit to skip the email and keep everything else |
 | `KV_REST_API_URL` / `KV_REST_API_TOKEN` | yes | injected by the storage integration |
 | `DIGEST_TO` | no | defaults to `hello@yuzuu.co` |
 | `DIGEST_FROM` | no | defaults to `Yuzuu Leads <leads@yuzuu.co>` |
-| `LEADS_MODEL` | no | defaults to `claude-sonnet-5` |
+| `LEADS_MODEL` | no | scoring model, defaults to `claude-sonnet-5` |
+| `LEADS_MESSAGE_MODEL` | no | model behind "Write first message", defaults to `gpt-6-astra` |
 | `LEADS_DASHBOARD_URL` | no | the link at the bottom of the email |
 | `LEADS_ACCESS_TOKEN` | no | set it and `/api/leads` requires `?token=…`, so the dashboard needs `/leads?token=…` |
 | `LEADS_REDDIT_SOURCE` | no | `rss`, `oauth`, or `auto` (default) |
@@ -166,6 +171,75 @@ correct one.
 writes `.leads-data.json` locally and the live dashboard never changes — the
 script warns when that happens. Run it with the production env (`vercel env
 pull`, or the vars exported) to reach the real store.
+
+## Writing the first message
+
+Every lead card has a **Write first message** button. It posts the lead's id to
+`/api/message`, which looks the lead up in the store, writes the opening DM, and
+drops it on the card with a copy button.
+
+The lead is fetched server-side by id rather than posted in by the browser: the
+request costs a model call, so what it writes about comes from what was stored,
+not from whatever the page happened to send.
+
+**This is the one job in the engine that does not run on Claude.** Scoring is
+classification and stays on Sonnet; this is pure writing, so it gets picked on
+output alone and currently runs OpenAI's `gpt-6-astra`. Swap it with
+`LEADS_MESSAGE_MODEL` (any Responses API model) without touching code.
+
+### What the message is trying to do
+
+Give something away and ask for nothing. That constraint is the whole design and
+it is easy to lose:
+
+- **No commercial terms.** No 70/30, no $27, no "twenty minutes", no "three
+  approved samples". They are answers to questions the person has not asked, and
+  leading with them turns a DM into a deck. `lib/first-message.js` keeps them in
+  the prompt as background so the writer never contradicts them, explicitly
+  fenced off from the message itself.
+- **The value is the read.** Two to four sentences of real thinking about their
+  situation, crediting what they already tried, then a guess at the actual
+  bottleneck. That paragraph is what earns the reply, so the word budget cuts
+  from everywhere else first.
+- **A concrete idea, not a product description.** The specific thing you would
+  build for this person, using what only they have.
+- **The ask is permission**, not a decision: can I put a concept together.
+
+### Two things it enforces mechanically
+
+`stripDashes()` rewrites em and en dashes to plain hyphens after generation.
+Models reach for them regardless of instructions, and one em dash is the tell
+that a human did not type the message. The prompt asks; that function guarantees.
+
+The 110-150 word budget is stated in the prompt with an explicit instruction on
+where to cut, because without it every model lands around 180 and pads part 4
+into a six-item scope document.
+
+Read the output before you send it. It is a good draft, not your signature.
+
+## Tracking who you have messaged
+
+**Mark as reached out** on a card writes `{ postId: timestamp }` into its own
+Redis hash and folds the card down to its meta line and title. Click the header
+to open it again; **Undo reached out** on the open card clears the mark.
+
+The **Not yet reached out** chip hides the marked ones, which is the point of
+the whole thing once the list runs past a screen. `reached_out` is also a column
+in the CSV export.
+
+Two decisions worth knowing:
+
+- **The flag is not a field on the lead.** The scanner and `add-manual.mjs` both
+  write leads back by overwriting the whole JSON blob for an id, so a flag
+  living on the lead would be erased the next time either touched it. It gets
+  its own hash (`yuzuu:leads:reached`) and outlives them.
+- **Pruning is by existence, not age.** Reached marks are dropped only when the
+  lead itself is gone. A creator you messaged two months ago is precisely the
+  one that must not reappear looking untouched.
+
+The mark is applied optimistically: the card folds on click and rolls back only
+if the write fails, because waiting on a round trip to collapse a row you have
+finished with feels broken.
 
 ## Tuning
 

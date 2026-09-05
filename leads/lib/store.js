@@ -17,6 +17,7 @@ const KEYS = {
   seen: 'yuzuu:leads:seen', // hash  postId -> createdAt ms
   leads: 'yuzuu:leads:items', // hash  postId -> lead json
   runs: 'yuzuu:leads:runs', // list  run summaries, newest first
+  reached: 'yuzuu:leads:reached', // hash  postId -> ms when you marked it reached
 }
 
 // ---------------------------------------------------------------------------
@@ -118,11 +119,12 @@ function createFileDriver(path) {
     try {
       cache = JSON.parse(await readFile(file, 'utf8'))
     } catch {
-      cache = { [KEYS.seen]: {}, [KEYS.leads]: {}, [KEYS.runs]: [] }
+      cache = { [KEYS.seen]: {}, [KEYS.leads]: {}, [KEYS.runs]: [], [KEYS.reached]: {} }
     }
     cache[KEYS.seen] ??= {}
     cache[KEYS.leads] ??= {}
     cache[KEYS.runs] ??= []
+    cache[KEYS.reached] ??= {}
     return cache
   }
 
@@ -203,6 +205,33 @@ export function createStore() {
         .sort((a, b) => b.score - a.score || b.createdUtc - a.createdUtc)
     },
 
+    /** One lead by post id — what the message writer needs, without reading the lot. */
+    async getLead(id) {
+      const raw = await driver.hgetall(KEYS.leads)
+      const v = raw[id]
+      if (v == null) return null
+      return typeof v === 'string' ? JSON.parse(v) : v
+    },
+
+    /**
+     * Who you have already messaged: `{ [postId]: timestamp }`.
+     *
+     * Kept in its own hash rather than as a field on the lead. The scanner and
+     * `add-manual.mjs` both write leads back by overwriting the whole JSON
+     * blob, so a flag living on the lead would be silently erased the next time
+     * one of them touched that id. This outlives them.
+     */
+    async getReached() {
+      const raw = await driver.hgetall(KEYS.reached)
+      return Object.fromEntries(Object.entries(raw).map(([id, ts]) => [id, Number(ts)]))
+    },
+
+    /** Mark (`at` = ms) or unmark (`at` = null) one lead. */
+    async setReached(id, at) {
+      if (at == null) await driver.hdel(KEYS.reached, [id])
+      else await driver.hset(KEYS.reached, { [id]: String(at) })
+    },
+
     async recordRun(run) {
       await driver.pushRun(run)
     },
@@ -228,9 +257,17 @@ export function createStore() {
         .filter(([, l]) => !l.manual && l.createdUtc < cutoff)
         .map(([id]) => id)
 
+      // Reached marks are pruned by whether the lead still exists, not by age:
+      // a lead you messaged months ago is exactly the one you must not offer up
+      // again as fresh, for as long as it is on screen.
+      const gone = new Set(staleLeads)
+      const reached = await driver.hgetall(KEYS.reached)
+      const staleReached = Object.keys(reached).filter((id) => gone.has(id) || !(id in leads))
+
       await driver.hdel(KEYS.seen, staleSeen)
       await driver.hdel(KEYS.leads, staleLeads)
-      return { seen: staleSeen.length, leads: staleLeads.length }
+      await driver.hdel(KEYS.reached, staleReached)
+      return { seen: staleSeen.length, leads: staleLeads.length, reached: staleReached.length }
     },
   }
 }

@@ -22,6 +22,12 @@
     "api/leads.js": {
       "maxDuration": 30
     },
+    "api/message.js": {
+      "maxDuration": 60
+    },
+    "api/reached.js": {
+      "maxDuration": 15
+    },
     "api/probe.js": {
       "maxDuration": 60
     }

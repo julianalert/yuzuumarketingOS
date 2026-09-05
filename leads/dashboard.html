@@ -107,9 +107,53 @@ input[type=search]{width:220px}
 }
 .angle:hover .copy,.copy:focus{opacity:1}
 .copy:hover{border-color:var(--zest);color:var(--ink)}
-.lead-foot{display:flex;align-items:center;gap:16px;margin-top:15px;padding-top:13px;border-top:1px solid var(--line)}
+.lead-foot{display:flex;flex-wrap:wrap;align-items:center;gap:16px;margin-top:15px;padding-top:13px;border-top:1px solid var(--line)}
 .lead-foot a{font-size:13px;font-weight:500;color:var(--ink);text-decoration:none;border-bottom:2px solid var(--zest);padding-bottom:1px}
 .lead-foot span{font-family:var(--mono);font-size:11px;color:var(--sage)}
+
+/* ---- first-message draft ---- */
+.write{
+  margin-left:auto;font-family:var(--ui);font-size:12.5px;font-weight:500;color:var(--ink);
+  background:var(--raised);border:1px solid var(--line-strong);border-radius:var(--r-md);
+  padding:6px 12px;cursor:pointer;transition:.14s;white-space:nowrap;
+}
+.write:hover:not(:disabled){border-color:var(--zest);box-shadow:0 4px 14px rgba(22,32,27,.05)}
+.write:disabled{color:var(--sage);border-color:var(--line);cursor:progress}
+.draft{
+  margin-top:14px;padding:15px 17px;background:var(--zest-wash);border:1px solid var(--zest);
+  border-radius:var(--r-md);position:relative;
+}
+.draft b{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--sage);font-weight:500;margin-bottom:8px}
+.draft p{font-size:14.5px;line-height:1.55;color:var(--ink);white-space:pre-wrap;max-width:64ch}
+.draft .copy{opacity:1}
+.draft.err{background:var(--warn-wash);border-color:var(--warn)}
+.draft.err p{font-family:var(--mono);font-size:12px;color:var(--warn)}
+
+/* ---- reached out: the card collapses to its meta line and title ---- */
+.reach{
+  font-family:var(--ui);font-size:12.5px;font-weight:500;color:var(--ink-soft);
+  background:var(--raised);border:1px solid var(--line-strong);border-radius:var(--r-md);
+  padding:6px 12px;cursor:pointer;transition:.14s;white-space:nowrap;
+}
+.reach:hover:not(:disabled){border-color:var(--zest);box-shadow:0 4px 14px rgba(22,32,27,.05)}
+.reach:disabled{opacity:.5;cursor:progress}
+.lead.done{padding:16px 24px;background:var(--paper);border-style:dashed}
+.lead.done .score{font-size:22px;color:var(--line-strong)}
+.lead.done .score small{display:none}
+.lead.done h3{font-size:16px;color:var(--sage);margin-bottom:0}
+.lead.done.open{padding:22px 24px;background:var(--raised);border-style:solid}
+.lead.done.open h3{font-size:20px;color:var(--ink);margin-bottom:10px}
+.lead.done .fold{display:none}
+.lead.done.open .fold{display:block}
+.tag.reached{background:transparent;border:1px solid var(--line-strong);color:var(--sage)}
+/* The whole header is the hit area on a folded card, so it opens where you look. */
+.lead.done .head{cursor:pointer}
+.lead.done .head:hover h3{color:var(--ink)}
+.caret{
+  display:none;float:right;margin-left:10px;font-family:var(--mono);font-size:10px;
+  letter-spacing:.06em;color:var(--sage);border:0;background:none;cursor:pointer;padding:2px 0;
+}
+.lead.done .caret{display:inline-block}
 
 .state{
   border:1px dashed var(--line-strong);border-radius:var(--r-lg);padding:56px 32px;text-align:center;
@@ -169,6 +213,7 @@ footer .bar-in{padding:22px var(--gutter);color:var(--sage);font-size:13px}
   <div class="controls" id="controls" hidden>
     <button class="chip" data-min="9" aria-pressed="false">🔥 9+ only</button>
     <button class="chip" data-min="8" aria-pressed="false">8+</button>
+    <button class="chip" id="c-todo" aria-pressed="false">Not yet reached out</button>
     <select id="f-sub"><option value="">All subreddits</option></select>
     <select id="f-type"><option value="">All creator types</option></select>
     <select id="f-days">
@@ -204,12 +249,17 @@ const $ = (id) => document.getElementById(id)
 const token = new URLSearchParams(location.search).get('token')
 const esc = (s='') => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
 
-const state = { leads: [], runs: [], meta: {}, min: 0, sub: '', type: '', days: 14, q: '' }
+const state = { leads: [], runs: [], meta: {}, min: 0, sub: '', type: '', days: 14, q: '', todoOnly: false }
 
 function apiUrl(extra = {}) {
   const p = new URLSearchParams({ days: String(state.days), min: '0', ...extra })
   if (token) p.set('token', token)
   return `/api/leads?${p}`
+}
+
+/** Same token gate as the read API, for the two POST endpoints. */
+function apiPath(path) {
+  return token ? `${path}?token=${encodeURIComponent(token)}` : path
 }
 
 async function load() {
@@ -218,7 +268,13 @@ async function load() {
     const res = await fetch(apiUrl())
     if (!res.ok) throw new Error(res.status === 401 ? 'Not authorised — this dashboard needs a ?token=' : `API returned ${res.status}`)
     const data = await res.json()
-    state.leads = data.leads || []
+    // Drafts live on the lead object, so a day-range change would drop the
+    // messages already written. Carry them over by id.
+    const kept = new Map(state.leads.filter(l => l.draft || l.expanded).map(l => [l.id, l]))
+    state.leads = (data.leads || []).map((l) => {
+      const was = kept.get(l.id)
+      return was ? { ...l, draft: was.draft, draftModel: was.draftModel, expanded: was.expanded } : l
+    })
     state.runs = data.runs || []
     state.meta = data.meta || {}
     hydrate()
@@ -265,6 +321,7 @@ function visible() {
   const q = state.q.toLowerCase()
   return state.leads.filter(l =>
     l.score >= state.min &&
+    (!state.todoOnly || !l.reachedOutAt) &&
     (!state.sub || l.subreddit === state.sub) &&
     (!state.type || l.creatorType === state.type) &&
     (!q || `${l.title} ${l.painPoint} ${l.outreachAngle} ${l.reason}`.toLowerCase().includes(q))
@@ -301,33 +358,65 @@ function render() {
 
 function card(l) {
   const heat = l.score >= 9 ? 'hot' : l.score >= 8 ? 'warm' : ''
-  const ago = timeAgo(l.createdUtc)
+  const done = Boolean(l.reachedOutAt)
+  // Everything below the title sits inside .fold, which a reached-out card
+  // hides — so a lead you have already messaged shrinks to one line you can
+  // skim past, and opens again on click.
   return `
-  <article class="lead ${heat}">
+  <article class="lead ${heat} ${done ? 'done' : ''} ${done && l.expanded ? 'open' : ''}">
     <div class="score">${l.score.toFixed(1)}<small>/ 10</small></div>
     <div>
-      <div class="lead-meta">
-        <span>r/${esc(l.subreddit)}</span>
-        ${l.creatorType && l.creatorType !== 'unclear' ? `<span class="tag">${esc(l.creatorType)}</span>` : ''}
-        ${l.manual ? `<span class="tag">hand-added</span>` : ''}
-        <span>${ago}</span>
+      <div class="head" data-id="${esc(l.id)}">
+        <button class="caret" aria-expanded="${done && l.expanded ? 'true' : 'false'}">${l.expanded ? 'close ▲' : 'open ▼'}</button>
+        <div class="lead-meta">
+          <span>r/${esc(l.subreddit)}</span>
+          ${l.creatorType && l.creatorType !== 'unclear' ? `<span class="tag">${esc(l.creatorType)}</span>` : ''}
+          ${l.manual ? `<span class="tag">hand-added</span>` : ''}
+          <span>${timeAgo(l.createdUtc)}</span>
+          ${done ? `<span class="tag reached">reached out · ${dayStamp(l.reachedOutAt)}</span>` : ''}
+        </div>
+        <h3>${esc(l.title)}</h3>
       </div>
-      <h3>${esc(l.title)}</h3>
-      <p class="why">${esc(l.reason)}</p>
-      ${(l.painPoint || l.creatorSignal) ? `<div class="facts">
-        ${l.painPoint ? `<div><b>Pain</b>${esc(l.painPoint)}</div>` : ''}
-        ${l.creatorSignal ? `<div><b>Audience</b>${esc(l.creatorSignal)}</div>` : ''}
-      </div>` : ''}
-      ${l.outreachAngle ? `<div class="angle">
-        <b>Open with</b>${esc(l.outreachAngle)}
-        <button class="copy" data-text="${esc(l.outreachAngle)}">copy</button>
-      </div>` : ''}
-      <div class="lead-foot">
-        <a href="${esc(l.url)}" target="_blank" rel="noopener">Open on Reddit →</a>
-        <span>u/${esc(l.author)}${l.upvotes == null ? '' : ` · ${l.upvotes}▲ · ${l.comments} comments`}</span>
+      <div class="fold">
+        <p class="why">${esc(l.reason)}</p>
+        ${(l.painPoint || l.creatorSignal) ? `<div class="facts">
+          ${l.painPoint ? `<div><b>Pain</b>${esc(l.painPoint)}</div>` : ''}
+          ${l.creatorSignal ? `<div><b>Audience</b>${esc(l.creatorSignal)}</div>` : ''}
+        </div>` : ''}
+        ${l.outreachAngle ? `<div class="angle">
+          <b>Open with</b>${esc(l.outreachAngle)}
+          <button class="copy" data-text="${esc(l.outreachAngle)}">copy</button>
+        </div>` : ''}
+        <div class="lead-foot">
+          <a href="${esc(l.url)}" target="_blank" rel="noopener">Open on Reddit →</a>
+          <span>u/${esc(l.author)}${l.upvotes == null ? '' : ` · ${l.upvotes}▲ · ${l.comments} comments`}</span>
+          <button class="write" data-id="${esc(l.id)}"${l.writing ? ' disabled' : ''}>
+            ${l.writing ? 'Writing…' : l.draft ? 'Write again' : 'Write first message'}
+          </button>
+          <button class="reach" data-id="${esc(l.id)}"${l.marking ? ' disabled' : ''}>
+            ${l.marking ? 'Saving…' : done ? 'Undo reached out' : 'Mark as reached out'}
+          </button>
+        </div>
+        ${draft(l)}
       </div>
     </div>
   </article>`
+}
+
+const dayStamp = (ms) =>
+  new Date(ms).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+
+/** The generated opener, once the button has produced one (or failed trying). */
+function draft(l) {
+  if (l.draftError) {
+    return `<div class="draft err"><b>Could not write it</b><p>${esc(l.draftError)}</p></div>`
+  }
+  if (!l.draft) return ''
+  return `<div class="draft">
+    <b>First message · ${esc(l.draftModel || 'claude')}</b>
+    <p>${esc(l.draft)}</p>
+    <button class="copy" data-text="${esc(l.draft)}">copy</button>
+  </div>`
 }
 
 function timeAgo(ms) {
@@ -339,15 +428,112 @@ function timeAgo(ms) {
 }
 
 // --- controls ---------------------------------------------------------------
-for (const chip of document.querySelectorAll('.chip')) {
+// Score chips are mutually exclusive with each other, and only with each other
+// — scoping this to [data-min] keeps it from clearing the reached-out chip.
+for (const chip of document.querySelectorAll('.chip[data-min]')) {
   chip.addEventListener('click', () => {
     const on = chip.getAttribute('aria-pressed') === 'true'
-    for (const c of document.querySelectorAll('.chip')) c.setAttribute('aria-pressed', 'false')
+    for (const c of document.querySelectorAll('.chip[data-min]')) c.setAttribute('aria-pressed', 'false')
     chip.setAttribute('aria-pressed', String(!on))
     state.min = on ? 0 : Number(chip.dataset.min)
     render()
   })
 }
+
+$('c-todo').addEventListener('click', () => {
+  state.todoOnly = !state.todoOnly
+  $('c-todo').setAttribute('aria-pressed', String(state.todoOnly))
+  render()
+})
+/**
+ * "Write first message" — one Claude call per click, per lead.
+ *
+ * Delegated because render() rewrites the whole list on every filter change,
+ * which would strip listeners bound to the buttons themselves.
+ */
+$('list').addEventListener('click', async (e) => {
+  const btn = e.target.closest('.write')
+  if (!btn) return
+
+  const lead = state.leads.find(l => l.id === btn.dataset.id)
+  if (!lead || lead.writing) return
+
+  lead.writing = true
+  lead.draftError = null
+  render()
+
+  try {
+    const res = await fetch(apiPath('/api/message'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: lead.id }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.error || `API returned ${res.status}`)
+    lead.draft = data.message
+    lead.draftModel = data.model
+  } catch (err) {
+    lead.draftError = err.message
+  } finally {
+    lead.writing = false
+    render()
+  }
+})
+
+/**
+ * Mark / unmark reached out, and fold / unfold a card that has been marked.
+ *
+ * The mark is optimistic: the card folds on the click and only rolls back if
+ * the write fails, because waiting on a round trip to collapse a row you have
+ * just finished with feels broken.
+ */
+$('list').addEventListener('click', async (e) => {
+  const head = e.target.closest('.head')
+  if (head) {
+    const lead = state.leads.find(l => l.id === head.dataset.id)
+    // Only folded cards toggle; on an unread card the header is just a header.
+    if (lead?.reachedOutAt) {
+      lead.expanded = !lead.expanded
+      render()
+    }
+    return
+  }
+
+  const btn = e.target.closest('.reach')
+  if (!btn) return
+
+  const lead = state.leads.find(l => l.id === btn.dataset.id)
+  if (!lead || lead.marking) return
+
+  const previous = lead.reachedOutAt
+  const reached = !previous
+
+  lead.marking = true
+  lead.reachedOutAt = reached ? Date.now() : null
+  // Opening a card you just marked would hide the fold you asked for; closing
+  // one you just un-marked would hide the card you want back.
+  lead.expanded = !reached
+  render()
+
+  try {
+    const res = await fetch(apiPath('/api/reached'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: lead.id, reached }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.error || `API returned ${res.status}`)
+    lead.reachedOutAt = data.reachedOutAt
+  } catch (err) {
+    lead.reachedOutAt = previous
+    lead.expanded = true
+    lead.draftError = `Could not save "reached out": ${err.message}`
+  } finally {
+    lead.marking = false
+    render()
+  }
+})
+
 $('f-sub').addEventListener('change', e => { state.sub = e.target.value; render() })
 $('f-type').addEventListener('change', e => { state.type = e.target.value; render() })
 $('f-days').addEventListener('change', e => { state.days = Number(e.target.value); load() })

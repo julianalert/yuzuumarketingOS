@@ -40,6 +40,15 @@ export const config = {
 
   model: process.env.LEADS_MODEL || 'claude-sonnet-5',
 
+  /**
+   * Model behind the dashboard's "Write first message" button.
+   *
+   * OpenAI, not Claude, and deliberately: this is the one job in the engine
+   * that is pure writing rather than classification, and it gets picked on
+   * output quality alone. Needs OPENAI_API_KEY.
+   */
+  messageModel: process.env.LEADS_MESSAGE_MODEL || 'gpt-6-astra',
+
   digest: {
     to: process.env.DIGEST_TO || 'hello@yuzuu.co',
     from: process.env.DIGEST_FROM || 'Yuzuu Leads <leads@yuzuu.co>',

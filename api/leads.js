@@ -24,6 +24,7 @@ const CSV_COLUMNS = [
   ['comments', (l) => l.comments ?? ''],
   ['posted_at', (l) => new Date(l.createdUtc).toISOString()],
   ['source', (l) => (l.manual ? 'manual' : 'scan')],
+  ['reached_out', (l) => (l.reachedOutAt ? new Date(l.reachedOutAt).toISOString() : '')],
   ['url', (l) => l.url],
 ]
 
@@ -43,7 +44,13 @@ export default async function handler(req, res) {
 
   try {
     const store = createStore()
-    const leads = await store.getLeads({ sinceMs, minScore })
+    const [stored, reached] = await Promise.all([
+      store.getLeads({ sinceMs, minScore }),
+      store.getReached(),
+    ])
+    // Denormalized onto the lead for the dashboard's benefit; the store keeps
+    // the two apart so the scanner can't overwrite the flag.
+    const leads = stored.map((l) => ({ ...l, reachedOutAt: reached[l.id] ?? null }))
 
     if (url.searchParams.get('format') === 'csv') {
       const rows = [
