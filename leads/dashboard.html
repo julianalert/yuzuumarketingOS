@@ -214,6 +214,10 @@ footer .bar-in{padding:22px var(--gutter);color:var(--sage);font-size:13px}
     <button class="chip" data-min="9" aria-pressed="false">🔥 9+ only</button>
     <button class="chip" data-min="8" aria-pressed="false">8+</button>
     <button class="chip" id="c-todo" aria-pressed="false">Not yet reached out</button>
+    <select id="f-sort">
+      <option value="recent" selected>Newest first</option>
+      <option value="score">Highest score first</option>
+    </select>
     <select id="f-sub"><option value="">All subreddits</option></select>
     <select id="f-type"><option value="">All creator types</option></select>
     <select id="f-days">
@@ -249,7 +253,7 @@ const $ = (id) => document.getElementById(id)
 const token = new URLSearchParams(location.search).get('token')
 const esc = (s='') => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
 
-const state = { leads: [], runs: [], meta: {}, min: 0, sub: '', type: '', days: 14, q: '', todoOnly: false }
+const state = { leads: [], runs: [], meta: {}, min: 0, sub: '', type: '', days: 14, q: '', todoOnly: false, sort: 'recent' }
 
 function apiUrl(extra = {}) {
   const p = new URLSearchParams({ days: String(state.days), min: '0', ...extra })
@@ -317,15 +321,25 @@ function fillSelect(el, values, label = v => v) {
   el.value = keep
 }
 
+// The API hands leads back best-score-first. Ordering is a reading decision,
+// not a storage one, so it happens here — filter() already returns a fresh
+// array, which makes the in-place sort safe.
+const ORDER = {
+  recent: (a, b) => b.createdUtc - a.createdUtc || b.score - a.score,
+  score: (a, b) => b.score - a.score || b.createdUtc - a.createdUtc,
+}
+
 function visible() {
   const q = state.q.toLowerCase()
-  return state.leads.filter(l =>
-    l.score >= state.min &&
-    (!state.todoOnly || !l.reachedOutAt) &&
-    (!state.sub || l.subreddit === state.sub) &&
-    (!state.type || l.creatorType === state.type) &&
-    (!q || `${l.title} ${l.painPoint} ${l.outreachAngle} ${l.reason}`.toLowerCase().includes(q))
-  )
+  return state.leads
+    .filter(l =>
+      l.score >= state.min &&
+      (!state.todoOnly || !l.reachedOutAt) &&
+      (!state.sub || l.subreddit === state.sub) &&
+      (!state.type || l.creatorType === state.type) &&
+      (!q || `${l.title} ${l.painPoint} ${l.outreachAngle} ${l.reason}`.toLowerCase().includes(q))
+    )
+    .sort(ORDER[state.sort] ?? ORDER.recent)
 }
 
 function render() {
@@ -534,6 +548,7 @@ $('list').addEventListener('click', async (e) => {
   }
 })
 
+$('f-sort').addEventListener('change', e => { state.sort = e.target.value; render() })
 $('f-sub').addEventListener('change', e => { state.sub = e.target.value; render() })
 $('f-type').addEventListener('change', e => { state.type = e.target.value; render() })
 $('f-days').addEventListener('change', e => { state.days = Number(e.target.value); load() })
