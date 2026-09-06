@@ -53,14 +53,23 @@ strong{color:var(--ink);font-weight:600}
 .day-lbl{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink);padding-bottom:6px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:baseline;gap:10px}
 .day-lbl em{font-style:normal;color:var(--sage);letter-spacing:.05em;text-transform:none;font-size:11.5px}
 
-.task{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid var(--line);align-items:flex-start}
+.task{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid var(--line);align-items:flex-start;cursor:pointer;-webkit-user-select:none;user-select:none}
 .task:last-child{border-bottom:none}
-.box{width:15px;height:15px;border:1.5px solid var(--line-strong);border-radius:2px;flex-shrink:0;margin-top:4px}
+.task:hover .box{border-color:var(--sage)}
+.task:focus-visible{outline:2px solid var(--zest);outline-offset:3px;border-radius:3px}
+.box{width:15px;height:15px;border:1.5px solid var(--line-strong);border-radius:2px;flex-shrink:0;margin-top:4px;display:flex;align-items:center;justify-content:center;transition:background .12s,border-color .12s}
 .task .body{min-width:0;flex:1}
 .task b{font-weight:600;font-size:14.5px;color:var(--ink);display:block}
 .task .s{font-size:13.5px;color:var(--sage);margin-top:3px}
 .task.key .box{border-color:var(--zest);background:var(--zest-wash)}
 .task.key b::after{content:"·  do this one first";font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--zest);text-transform:uppercase;margin-left:8px;font-weight:500}
+
+/* Ticked. Placed after .task.key so a "do this one first" box fills in too. */
+.task.done .box{background:var(--zest);border-color:var(--zest)}
+.task.done .box::after{content:"";width:3.5px;height:8px;border:solid var(--ink);border-width:0 2px 2px 0;transform:rotate(45deg) translate(-1px,-1px)}
+.task.done b{color:var(--sage);text-decoration:line-through;text-decoration-thickness:1px}
+.task.done .s{opacity:.5}
+.task.done.key b::after{display:none}
 
 .callout{background:var(--raised);border:1px solid var(--line);border-left:2px solid var(--zest);border-radius:0 var(--r-md) var(--r-md) 0;padding:15px 19px;margin:18px 0}
 .callout .micro{color:var(--ink-soft);margin-bottom:4px}
@@ -326,6 +335,74 @@ If one of the three looks right I'll build the whole thing this week and you app
 <footer>
   <div class="bar-in">Yuzuu · First creator · 4-week list · August 2026</div>
 </footer>
+
+<script>
+/**
+ * Tick tasks off, and have them still be ticked tomorrow.
+ *
+ * This page is static and has no backend, so progress lives in localStorage:
+ * private to this browser, never sent anywhere, and untouched by redeploys.
+ */
+(() => {
+  const KEY = 'yuzuu:first-creator-4-weeks:done'
+
+  // Storage access itself can throw (private windows, blocked site data), so
+  // both sides are guarded and the page stays usable with none of it.
+  const load = () => {
+    try { return new Set(JSON.parse(localStorage.getItem(KEY)) || []) } catch { return new Set() }
+  }
+  const save = (set) => {
+    try { localStorage.setItem(KEY, JSON.stringify([...set])) } catch { /* nothing to do */ }
+  }
+
+  const done = load()
+  const seen = new Map()
+
+  for (const task of document.querySelectorAll('.task')) {
+    // Keyed by its title, not its position: adding a task or reordering a day
+    // must not shift saved ticks onto different rows. One title genuinely
+    // repeats ("15 warm-up comments"), so repeats get an occurrence suffix
+    // instead of sharing a single tick.
+    const title = task.querySelector('b')?.textContent.trim() ?? ''
+    const base = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60)
+    const n = (seen.get(base) ?? 0) + 1
+    seen.set(base, n)
+
+    task.dataset.taskId = n > 1 ? `${base}~${n}` : base
+    task.setAttribute('role', 'checkbox')
+    task.setAttribute('tabindex', '0')
+    paint(task, done.has(task.dataset.taskId))
+  }
+
+  function paint(task, on) {
+    task.classList.toggle('done', on)
+    task.setAttribute('aria-checked', String(on))
+  }
+
+  function toggle(task) {
+    const id = task.dataset.taskId
+    const on = !done.has(id)
+    if (on) done.add(id)
+    else done.delete(id)
+    paint(task, on)
+    save(done)
+  }
+
+  // Delegated, so the whole row is the hit area rather than the 15px box.
+  document.addEventListener('click', (e) => {
+    const task = e.target.closest('.task')
+    if (task) toggle(task)
+  })
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== ' ' && e.key !== 'Enter') return
+    const task = e.target.closest?.('.task')
+    if (!task) return
+    e.preventDefault() // space would otherwise scroll the page
+    toggle(task)
+  })
+})()
+</script>
 
 </body>
 </html>
