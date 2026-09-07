@@ -38,8 +38,17 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'unauthorized' })
   }
 
-  const days = Math.min(90, Number(url.searchParams.get('days')) || 14)
-  const minScore = Number(url.searchParams.get('min')) || config.minLeadScore
+  // `|| default` would swallow a deliberate 0 here, and the dashboard sends
+  // min=0 on every load — which silently became the 7 threshold and hid every
+  // lead scored below it, hand-added ones included.
+  const num = (name, fallback) => {
+    const raw = url.searchParams.get(name)
+    const n = Number(raw)
+    return raw === null || raw === '' || !Number.isFinite(n) ? fallback : n
+  }
+
+  const days = Math.min(90, Math.max(0, num('days', 14)))
+  const minScore = num('min', config.minLeadScore)
   const sinceMs = Date.now() - days * 864e5
 
   try {
