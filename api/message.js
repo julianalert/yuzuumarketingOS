@@ -1,7 +1,11 @@
 /**
  * Write the opening DM for one lead.
  *
- *   POST /api/message   { "id": "1ujnzov" }   → { message, model, usage }
+ *   POST /api/message   { "id": "1ujnzov" }                   → { message, model }
+ *   POST /api/message   { "id": "1ujnzov", "discard": true }  → { message: null }
+ *
+ * A written message is saved against the lead, so it survives a refresh and is
+ * there on another device. Writing again overwrites it; discarding drops it.
  *
  * The lead is looked up in the store by id rather than posted in by the
  * browser: the request costs a model call, so what it writes about should come
@@ -43,19 +47,35 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { id } = await readBody(req)
+    const { id, discard } = await readBody(req)
     if (!id || typeof id !== 'string') {
       return res.status(400).json({ error: 'body must be { "id": "<lead id>" }' })
     }
 
-    const lead = await createStore().getLead(id)
+    const store = createStore()
+    const lead = await store.getLead(id)
     if (!lead) {
       return res.status(404).json({ error: `no stored lead with id ${id}` })
     }
 
-    const result = await writeFirstMessage(lead)
     res.setHeader('Cache-Control', 'no-store')
-    return res.status(200).json(result)
+
+    // Throwing one away is the cheap half of this endpoint: no model call, and
+    // it belongs here because this is what owns a draft's lifecycle.
+    if (discard === true) {
+      await store.setDraft(id, null)
+      return res.status(200).json({ id, message: null })
+    }
+
+    const { message, model, usage } = await writeFirstMessage(lead)
+    const draft = { message, model, writtenAt: Date.now() }
+
+    // Persist before answering. If the write fails the caller must not be told
+    // it has a saved message — better to see the error and press the button
+    // again than to lose it silently on the next refresh.
+    await store.setDraft(id, draft)
+
+    return res.status(200).json({ id, ...draft, usage })
   } catch (err) {
     console.error('[message] write failed', err)
     return res.status(500).json({ error: err.message })

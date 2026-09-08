@@ -66,6 +66,7 @@ or `auto`.
 | `../api/leads.js` | Read API for the dashboard + CSV export. |
 | `../api/message.js` | Backs the dashboard's "Write first message" button. |
 | `../api/reached.js` | Marks a lead reached out, or undoes it. |
+| — | Written messages are saved by `../api/message.js` and read back by `../api/leads.js`. |
 
 ## Setup
 
@@ -216,6 +217,21 @@ where to cut, because without it every model lands around 180 and pads part 4
 into a six-item scope document.
 
 Read the output before you send it. It is a good draft, not your signature.
+
+### It is saved
+
+A written message is stored against the lead, so it survives a refresh and is
+there on your other machine. **Write again** overwrites it; **discard** on the
+draft throws it away. `first_message` is a CSV column too.
+
+Same reasoning as the reached-out flag: its own hash (`yuzuu:leads:drafts`),
+never a field on the lead, because the scanner and `add-manual.mjs` write leads
+back by overwriting the whole blob for an id. A flag lost that way is an
+annoyance; a message lost that way cost a model call to produce.
+
+The save happens before the endpoint answers. If storage is down you get the
+error and press the button again, rather than being handed a message that
+quietly vanishes on the next refresh.
 
 ## Tracking who you have messaged
 

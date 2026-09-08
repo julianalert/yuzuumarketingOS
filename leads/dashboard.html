@@ -125,7 +125,15 @@ input[type=search]{width:220px}
 }
 .draft b{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--sage);font-weight:500;margin-bottom:8px}
 .draft p{font-size:14.5px;line-height:1.55;color:var(--ink);white-space:pre-wrap;max-width:64ch}
-.draft .copy{opacity:1}
+.draft-acts{position:absolute;top:9px;right:9px;display:flex;gap:6px}
+.draft-acts .copy{position:static;opacity:1}
+.discard{
+  font-family:var(--mono);font-size:10px;letter-spacing:.06em;
+  background:var(--raised);border:1px solid var(--line);border-radius:var(--r-sm);
+  padding:3px 8px;cursor:pointer;color:var(--sage);transition:.14s;
+}
+.discard:hover{border-color:var(--warn);color:var(--warn)}
+.discard:disabled{opacity:.5;cursor:progress}
 .draft.err{background:var(--warn-wash);border-color:var(--warn)}
 .draft.err p{font-family:var(--mono);font-size:12px;color:var(--warn)}
 
@@ -274,11 +282,10 @@ async function load() {
     const data = await res.json()
     // Drafts live on the lead object, so a day-range change would drop the
     // messages already written. Carry them over by id.
-    const kept = new Map(state.leads.filter(l => l.draft || l.expanded).map(l => [l.id, l]))
-    state.leads = (data.leads || []).map((l) => {
-      const was = kept.get(l.id)
-      return was ? { ...l, draft: was.draft, draftModel: was.draftModel, expanded: was.expanded } : l
-    })
+    // Drafts arrive with the leads now, so only the fold state — which is
+    // pure UI and deliberately not stored — needs carrying across a reload.
+    const open = new Set(state.leads.filter(l => l.expanded).map(l => l.id))
+    state.leads = (data.leads || []).map(l => (open.has(l.id) ? { ...l, expanded: true } : l))
     state.runs = data.runs || []
     state.meta = data.meta || {}
     hydrate()
@@ -426,10 +433,14 @@ function draft(l) {
     return `<div class="draft err"><b>Could not write it</b><p>${esc(l.draftError)}</p></div>`
   }
   if (!l.draft) return ''
+  const stamp = l.draftWrittenAt ? ` · ${dayStamp(l.draftWrittenAt)}` : ''
   return `<div class="draft">
-    <b>First message · ${esc(l.draftModel || 'claude')}</b>
+    <b>First message · ${esc(l.draftModel || 'model')}${stamp}</b>
     <p>${esc(l.draft)}</p>
-    <button class="copy" data-text="${esc(l.draft)}">copy</button>
+    <div class="draft-acts">
+      <button class="copy" data-text="${esc(l.draft)}">copy</button>
+      <button class="discard" data-id="${esc(l.id)}"${l.discarding ? ' disabled' : ''}>${l.discarding ? '…' : 'discard'}</button>
+    </div>
   </div>`
 }
 
@@ -486,6 +497,7 @@ $('list').addEventListener('click', async (e) => {
     if (!res.ok) throw new Error(data.error || `API returned ${res.status}`)
     lead.draft = data.message
     lead.draftModel = data.model
+    lead.draftWrittenAt = data.writtenAt
   } catch (err) {
     lead.draftError = err.message
   } finally {
@@ -502,6 +514,37 @@ $('list').addEventListener('click', async (e) => {
  * just finished with feels broken.
  */
 $('list').addEventListener('click', async (e) => {
+  const bin = e.target.closest('.discard')
+  if (bin) {
+    const lead = state.leads.find(l => l.id === bin.dataset.id)
+    if (!lead || lead.discarding) return
+
+    const had = { draft: lead.draft, model: lead.draftModel, writtenAt: lead.draftWrittenAt }
+    lead.discarding = true
+    render()
+
+    try {
+      const res = await fetch(apiPath('/api/message'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: lead.id, discard: true }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || `API returned ${res.status}`)
+      lead.draft = null
+      lead.draftModel = null
+      lead.draftWrittenAt = null
+    } catch (err) {
+      // Put it back rather than leave the card looking empty on a failed delete.
+      Object.assign(lead, { draft: had.draft, draftModel: had.model, draftWrittenAt: had.writtenAt })
+      lead.draftError = `Could not discard: ${err.message}`
+    } finally {
+      lead.discarding = false
+      render()
+    }
+    return
+  }
+
   const head = e.target.closest('.head')
   if (head) {
     const lead = state.leads.find(l => l.id === head.dataset.id)

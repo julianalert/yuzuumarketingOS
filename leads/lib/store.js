@@ -18,6 +18,7 @@ const KEYS = {
   leads: 'yuzuu:leads:items', // hash  postId -> lead json
   runs: 'yuzuu:leads:runs', // list  run summaries, newest first
   reached: 'yuzuu:leads:reached', // hash  postId -> ms when you marked it reached
+  drafts: 'yuzuu:leads:drafts', // hash  postId -> { message, model, writtenAt }
 }
 
 // ---------------------------------------------------------------------------
@@ -119,12 +120,15 @@ function createFileDriver(path) {
     try {
       cache = JSON.parse(await readFile(file, 'utf8'))
     } catch {
-      cache = { [KEYS.seen]: {}, [KEYS.leads]: {}, [KEYS.runs]: [], [KEYS.reached]: {} }
+      cache = {
+        [KEYS.seen]: {}, [KEYS.leads]: {}, [KEYS.runs]: [], [KEYS.reached]: {}, [KEYS.drafts]: {},
+      }
     }
     cache[KEYS.seen] ??= {}
     cache[KEYS.leads] ??= {}
     cache[KEYS.runs] ??= []
     cache[KEYS.reached] ??= {}
+    cache[KEYS.drafts] ??= {}
     return cache
   }
 
@@ -232,6 +236,28 @@ export function createStore() {
       else await driver.hset(KEYS.reached, { [id]: String(at) })
     },
 
+    /**
+     * Written first messages: `{ [postId]: { message, model, writtenAt } }`.
+     *
+     * Its own hash, for the same reason as `getReached()` — the scanner and
+     * `add-manual.mjs` write leads back by overwriting the whole JSON blob for
+     * an id, so a draft stored on the lead would not survive them. A message
+     * costs a model call to produce; losing one to a routine re-import would be
+     * worse than losing a flag.
+     */
+    async getDrafts() {
+      const raw = await driver.hgetall(KEYS.drafts)
+      return Object.fromEntries(
+        Object.entries(raw).map(([id, v]) => [id, typeof v === 'string' ? JSON.parse(v) : v]),
+      )
+    },
+
+    /** Save a written message, or drop it (`draft` = null). */
+    async setDraft(id, draft) {
+      if (draft == null) await driver.hdel(KEYS.drafts, [id])
+      else await driver.hset(KEYS.drafts, { [id]: JSON.stringify(draft) })
+    },
+
     async recordRun(run) {
       await driver.pushRun(run)
     },
@@ -261,13 +287,22 @@ export function createStore() {
       // a lead you messaged months ago is exactly the one you must not offer up
       // again as fresh, for as long as it is on screen.
       const gone = new Set(staleLeads)
-      const reached = await driver.hgetall(KEYS.reached)
-      const staleReached = Object.keys(reached).filter((id) => gone.has(id) || !(id in leads))
+      const orphaned = async (key) =>
+        Object.keys(await driver.hgetall(key)).filter((id) => gone.has(id) || !(id in leads))
+
+      const staleReached = await orphaned(KEYS.reached)
+      const staleDrafts = await orphaned(KEYS.drafts)
 
       await driver.hdel(KEYS.seen, staleSeen)
       await driver.hdel(KEYS.leads, staleLeads)
       await driver.hdel(KEYS.reached, staleReached)
-      return { seen: staleSeen.length, leads: staleLeads.length, reached: staleReached.length }
+      await driver.hdel(KEYS.drafts, staleDrafts)
+      return {
+        seen: staleSeen.length,
+        leads: staleLeads.length,
+        reached: staleReached.length,
+        drafts: staleDrafts.length,
+      }
     },
   }
 }
